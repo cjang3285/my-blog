@@ -1,0 +1,29 @@
+---
+import Layout from '../layouts/Layout.astro';
+
+const res = await fetch('http://172.30.1.95:3000/api/status');
+const status = await res.json();
+---
+
+<html>
+  <body class="p-8 bg-gray-100">
+    <h1 class="text-3xl font-bold mb-6">Server Status</h1>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div class="bg-white shadow rounded p-6">
+        <h2 class="text-xl font-semibold mb-2">CPU</h2>
+        <p class="text-gray-700">{status.cpu}</p>
+      </div>
+
+      <div class="bg-white shadow rounded p-6">
+        <h2 class="text-xl font-semibold mb-2">Memory</h2>
+        <p class="text-gray-700">{status.memory}</p>
+      </div>
+
+      <div class="bg-white shadow rounded p-6">
+        <h2 class="text-xl font-semibold mb-2">Uptime</h2>
+        <p class="text-gray-700">{status.uptime}</p>
+      </div>
+    </div>
+  </body>
+</html>
