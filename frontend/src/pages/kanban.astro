@@ -1,0 +1,270 @@
+---
+import Layout from '../layouts/Layout.astro';
+
+const pageTitle = 'Kanban Board - CS {["장찬욱"]};';
+---
+
+<Layout title={pageTitle} description="프로젝트 아이디어와 진행 상황 관리">
+	<div>
+		<h1 class="text-4xl font-bold mb-8">Kanban Board</h1>
+		<p class="text-gray-400 mb-8">프로젝트 아이디어와 진행 현황을 관리합니다.</p>
+
+		<div id="kanban-board" class="grid md:grid-cols-3 gap-6">
+			<!-- TODO Column -->
+			<div class="kanban-column" data-column="todo">
+				<div class="flex justify-between items-center mb-4">
+					<h2 class="text-xl font-semibold text-gray-300">Todo</h2>
+					<button class="add-card-btn text-blue-400 hover:text-blue-300 text-2xl" data-column="todo">+</button>
+				</div>
+				<div class="kanban-cards space-y-3 min-h-[400px] p-4 bg-gray-900 rounded-lg" data-column="todo">
+					<!-- Cards will be inserted here -->
+				</div>
+			</div>
+
+			<!-- In Progress Column -->
+			<div class="kanban-column" data-column="inProgress">
+				<div class="flex justify-between items-center mb-4">
+					<h2 class="text-xl font-semibold text-gray-300">In Progress</h2>
+					<button class="add-card-btn text-blue-400 hover:text-blue-300 text-2xl" data-column="inProgress">+</button>
+				</div>
+				<div class="kanban-cards space-y-3 min-h-[400px] p-4 bg-gray-900 rounded-lg" data-column="inProgress">
+					<!-- Cards will be inserted here -->
+				</div>
+			</div>
+
+			<!-- Done Column -->
+			<div class="kanban-column" data-column="done">
+				<div class="flex justify-between items-center mb-4">
+					<h2 class="text-xl font-semibold text-gray-300">Done</h2>
+					<button class="add-card-btn text-blue-400 hover:text-blue-300 text-2xl" data-column="done">+</button>
+				</div>
+				<div class="kanban-cards space-y-3 min-h-[400px] p-4 bg-gray-900 rounded-lg" data-column="done">
+					<!-- Cards will be inserted here -->
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- Add/Edit Card Modal -->
+	<div id="card-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+		<div class="bg-gray-800 p-6 rounded-lg w-full max-w-md">
+			<h3 id="modal-title" class="text-xl font-semibold mb-4">Add Card</h3>
+			<form id="card-form">
+				<input type="hidden" id="card-column" />
+				<input type="hidden" id="card-id" />
+				<div class="mb-4">
+					<label class="block text-gray-300 mb-2">Title</label>
+					<input
+						type="text"
+						id="card-title"
+						required
+						class="w-full px-4 py-2 bg-gray-700 text-gray-100 rounded border border-gray-600 focus:border-blue-400 outline-none"
+					/>
+				</div>
+				<div class="mb-4">
+					<label class="block text-gray-300 mb-2">Description</label>
+					<textarea
+						id="card-description"
+						rows="3"
+						class="w-full px-4 py-2 bg-gray-700 text-gray-100 rounded border border-gray-600 focus:border-blue-400 outline-none"
+					></textarea>
+				</div>
+				<div class="flex gap-2 justify-end">
+					<button
+						type="button"
+						id="cancel-btn"
+						class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded"
+					>
+						Cancel
+					</button>
+					<button
+						type="submit"
+						class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded"
+					>
+						Save
+					</button>
+				</div>
+			</form>
+		</div>
+	</div>
+</Layout>
+
+<script>
+	const API_URL = 'http://localhost:3000';
+	let draggedCard: HTMLElement | null = null;
+	let draggedCardId: number | null = null;
+	let draggedFromColumn: string | null = null;
+
+	// Fetch and render kanban board
+	async function loadKanban() {
+		try {
+			const response = await fetch(`${API_URL}/api/kanban`);
+			const data = await response.json();
+
+			renderColumn('todo', data.todo);
+			renderColumn('inProgress', data.inProgress);
+			renderColumn('done', data.done);
+		} catch (error) {
+			console.error('Failed to load kanban:', error);
+		}
+	}
+
+	function renderColumn(column: string, cards: any[]) {
+		const container = document.querySelector(`.kanban-cards[data-column="${column}"]`);
+		if (!container) return;
+
+		container.innerHTML = '';
+		cards.forEach(card => {
+			const cardEl = createCardElement(card, column);
+			container.appendChild(cardEl);
+		});
+	}
+
+	function createCardElement(card: any, column: string) {
+		const div = document.createElement('div');
+		div.className = 'kanban-card bg-gray-800 p-4 rounded border border-gray-700 hover:border-blue-400 cursor-move';
+		div.draggable = true;
+		div.dataset.cardId = card.id.toString();
+		div.dataset.column = column;
+
+		div.innerHTML = `
+			<div class="flex justify-between items-start mb-2">
+				<h3 class="font-semibold text-gray-100">${card.title}</h3>
+				<button class="delete-card text-red-400 hover:text-red-300 ml-2" data-card-id="${card.id}" data-column="${column}">×</button>
+			</div>
+			<p class="text-sm text-gray-400">${card.description || ''}</p>
+		`;
+
+		// Drag events
+		div.addEventListener('dragstart', handleDragStart);
+		div.addEventListener('dragend', handleDragEnd);
+
+		// Delete button
+		const deleteBtn = div.querySelector('.delete-card');
+		deleteBtn?.addEventListener('click', () => deleteCard(card.id, column));
+
+		return div;
+	}
+
+	function handleDragStart(e: DragEvent) {
+		const target = e.target as HTMLElement;
+		draggedCard = target;
+		draggedCardId = parseInt(target.dataset.cardId || '0');
+		draggedFromColumn = target.dataset.column || null;
+		target.classList.add('opacity-50');
+	}
+
+	function handleDragEnd(e: DragEvent) {
+		const target = e.target as HTMLElement;
+		target.classList.remove('opacity-50');
+	}
+
+	function handleDragOver(e: DragEvent) {
+		e.preventDefault();
+	}
+
+	async function handleDrop(e: DragEvent, column: string) {
+		e.preventDefault();
+
+		if (!draggedCardId || !draggedFromColumn) return;
+
+		const container = e.currentTarget as HTMLElement;
+		const cards = Array.from(container.querySelectorAll('.kanban-card'));
+		const toIndex = cards.length;
+
+		try {
+			await fetch(`${API_URL}/api/kanban/move`, {
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					cardId: draggedCardId,
+					fromColumn: draggedFromColumn,
+					toColumn: column,
+					toIndex
+				})
+			});
+
+			await loadKanban();
+		} catch (error) {
+			console.error('Failed to move card:', error);
+		}
+	}
+
+	async function deleteCard(cardId: number, column: string) {
+		if (!confirm('Delete this card?')) return;
+
+		try {
+			await fetch(`${API_URL}/api/kanban/card`, {
+				method: 'DELETE',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ cardId, column })
+			});
+
+			await loadKanban();
+		} catch (error) {
+			console.error('Failed to delete card:', error);
+		}
+	}
+
+	// Modal handling
+	const modal = document.getElementById('card-modal');
+	const form = document.getElementById('card-form') as HTMLFormElement;
+	const cancelBtn = document.getElementById('cancel-btn');
+
+	document.querySelectorAll('.add-card-btn').forEach(btn => {
+		btn.addEventListener('click', () => {
+			const column = (btn as HTMLElement).dataset.column;
+			openModal(column!);
+		});
+	});
+
+	cancelBtn?.addEventListener('click', closeModal);
+
+	function openModal(column: string) {
+		const columnInput = document.getElementById('card-column') as HTMLInputElement;
+		columnInput.value = column;
+
+		(document.getElementById('card-title') as HTMLInputElement).value = '';
+		(document.getElementById('card-description') as HTMLTextAreaElement).value = '';
+		(document.getElementById('card-id') as HTMLInputElement).value = '';
+
+		modal?.classList.remove('hidden');
+	}
+
+	function closeModal() {
+		modal?.classList.add('hidden');
+	}
+
+	form?.addEventListener('submit', async (e) => {
+		e.preventDefault();
+
+		const column = (document.getElementById('card-column') as HTMLInputElement).value;
+		const title = (document.getElementById('card-title') as HTMLInputElement).value;
+		const description = (document.getElementById('card-description') as HTMLTextAreaElement).value;
+
+		try {
+			await fetch(`${API_URL}/api/kanban/card`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ column, title, description })
+			});
+
+			await loadKanban();
+			closeModal();
+		} catch (error) {
+			console.error('Failed to add card:', error);
+		}
+	});
+
+	// Set up drag and drop on columns
+	document.querySelectorAll('.kanban-cards').forEach(column => {
+		column.addEventListener('dragover', handleDragOver);
+		column.addEventListener('drop', (e) => {
+			const col = (e.currentTarget as HTMLElement).dataset.column!;
+			handleDrop(e as DragEvent, col);
+		});
+	});
+
+	// Load initial data
+	loadKanban();
+</script>

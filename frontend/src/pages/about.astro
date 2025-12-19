@@ -1,0 +1,74 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="About - My Blog" description="저에 대한 소개">
+	<div class="max-w-3xl">
+		<h1 class="text-4xl font-bold mb-12">About</h1>
+
+		<div class="space-y-8">
+			<section>
+				<h2 class="text-2xl font-semibold mb-4">안녕하세요</h2>
+				<p class="text-lg text-gray-300 leading-relaxed">
+					컴퓨터공학을 전공하는 학부생입니다. 전공 공부를 충실히 하며 배운 것들을
+					실제로 만들어보는 과정에서 성장하고 있습니다.
+				</p>
+			</section>
+
+			<section>
+				<h2 class="text-2xl font-semibold mb-4">이수 과목</h2>
+				<div class="grid md:grid-cols-2 gap-4">
+					<div>
+						<h3 class="font-semibold text-blue-400 mb-2">전공 필수/선택</h3>
+						<ul class="space-y-1 text-gray-300 text-sm">
+							<li>• 데이터베이스</li>
+							<li>• 소프트웨어공학</li>
+							<li>• 웹파이썬프로그래밍</li>
+							<li>• 마이크로서비스프로그래밍</li>
+							<li>• 자료구조</li>
+							<li>• 객체지향프로그래밍</li>
+						</ul>
+					</div>
+					<div>
+						<h3 class="font-semibold text-blue-400 mb-2">수학/기초과학</h3>
+						<ul class="space-y-1 text-gray-300 text-sm">
+							<li>• 선형대수</li>
+							<li>• 미분방정식</li>
+							<li>• 미분적분학</li>
+							<li>• 신호와 시스템</li>
+						</ul>
+					</div>
+				</div>
+			</section>
+
+			<section>
+				<h2 class="text-2xl font-semibold mb-4">이 블로그에 대해</h2>
+				<p class="text-lg text-gray-300 leading-relaxed mb-4">
+					학습한 내용과 프로젝트 아이디어를 기록하고 공유하기 위한 공간입니다.
+					Astro와 Express.js 기반으로 만들어졌으며, 다음과 같은 특징이 있습니다:
+				</p>
+				<ul class="space-y-2 text-gray-300">
+					<li>• <strong>미니멀 디자인:</strong> Lee Robinson, Guillermo Rauch의 스타일에서 영감을 받았습니다</li>
+					<li>• <strong>다크모드:</strong> 깔끔한 다크 테마로 고정되어 있습니다</li>
+					<li>• <strong>풀스택 구조:</strong> Astro 프론트엔드와 Express 백엔드가 연동됩니다</li>
+					<li>• <strong>빠른 성능:</strong> Astro의 정적 생성을 활용합니다</li>
+				</ul>
+			</section>
+
+			<section class="pt-8 border-t border-gray-800">
+				<h2 class="text-2xl font-semibold mb-4">Contact</h2>
+				<div class="flex flex-col gap-2 text-gray-300">
+					<p>궁금한 점이 있다면 언제든 연락주세요.</p>
+					<div class="flex gap-4 pt-4">
+						<a href="mailto:cjang6199@gmail.com" class="text-blue-400 hover:underline">
+							Email
+						</a>
+						<a href="https://github.com/cjang3285" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:underline">
+							GitHub
+						</a>
+					</div>
+				</div>
+			</section>
+		</div>
+	</div>
+</Layout>

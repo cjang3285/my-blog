@@ -1,0 +1,218 @@
+---
+import Layout from '../layouts/Layout.astro';
+
+const pageTitle = 'Projects - CS {["장찬욱"]};';
+---
+
+<Layout title={pageTitle} description="진행한 프로젝트들을 소개합니다">
+	<div>
+		<div class="flex justify-between items-center mb-4">
+			<h1 class="text-4xl font-bold">Projects</h1>
+			<button id="add-project-btn" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded font-medium">
+				+ 새 프로젝트
+			</button>
+		</div>
+		<p class="text-xl text-gray-400 mb-12">
+			학습하며 만든 프로젝트들입니다.
+		</p>
+
+		<div id="projects-container" class="grid md:grid-cols-2 gap-6">
+			<!-- Projects will be loaded here -->
+		</div>
+	</div>
+
+	<!-- Add/Edit Project Modal -->
+	<div id="project-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 overflow-y-auto">
+		<div class="bg-gray-800 p-6 rounded-lg w-full max-w-2xl m-4">
+			<h3 id="modal-title" class="text-2xl font-semibold mb-4">새 프로젝트 추가</h3>
+			<form id="project-form">
+				<input type="hidden" id="project-id" />
+				<div class="mb-4">
+					<label class="block text-gray-300 mb-2">프로젝트 이름 *</label>
+					<input
+						type="text"
+						id="project-title"
+						required
+						class="w-full px-4 py-2 bg-gray-700 text-gray-100 rounded border border-gray-600 focus:border-blue-400 outline-none"
+					/>
+				</div>
+				<div class="mb-4">
+					<label class="block text-gray-300 mb-2">설명 *</label>
+					<textarea
+						id="project-description"
+						required
+						rows="4"
+						class="w-full px-4 py-2 bg-gray-700 text-gray-100 rounded border border-gray-600 focus:border-blue-400 outline-none"
+					></textarea>
+				</div>
+				<div class="mb-4">
+					<label class="block text-gray-300 mb-2">링크</label>
+					<input
+						type="text"
+						id="project-link"
+						placeholder="예: /my-project 또는 https://..."
+						class="w-full px-4 py-2 bg-gray-700 text-gray-100 rounded border border-gray-600 focus:border-blue-400 outline-none"
+					/>
+				</div>
+				<div class="mb-4">
+					<label class="block text-gray-300 mb-2">태그 (쉼표로 구분)</label>
+					<input
+						type="text"
+						id="project-tags"
+						placeholder="예: React, TypeScript, API"
+						class="w-full px-4 py-2 bg-gray-700 text-gray-100 rounded border border-gray-600 focus:border-blue-400 outline-none"
+					/>
+				</div>
+				<div class="flex gap-2 justify-end">
+					<button
+						type="button"
+						id="cancel-btn"
+						class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded"
+					>
+						취소
+					</button>
+					<button
+						type="submit"
+						class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded"
+					>
+						저장
+					</button>
+				</div>
+			</form>
+		</div>
+	</div>
+</Layout>
+
+<script>
+	const API_URL = 'http://localhost:3000';
+
+	async function loadProjects() {
+		try {
+			const response = await fetch(`${API_URL}/api/projects`);
+			const projects = await response.json();
+
+			const container = document.getElementById('projects-container');
+			if (!container) return;
+
+			if (projects.length === 0) {
+				container.innerHTML = `
+					<div class="col-span-2 text-center py-20">
+						<p class="text-gray-400 text-lg mb-4">아직 프로젝트가 없습니다.</p>
+						<p class="text-gray-500 text-sm">새 프로젝트를 추가해보세요!</p>
+					</div>
+				`;
+				return;
+			}
+
+			container.innerHTML = projects.map(project => `
+				<article class="p-6 rounded-xl border border-gray-800 hover:border-blue-500 transition-colors">
+					<div class="space-y-3">
+						<h3 class="text-xl font-semibold">${project.title}</h3>
+						<p class="text-gray-400">${project.description}</p>
+						${project.tags && project.tags.length > 0 ? `
+							<div class="flex flex-wrap gap-2">
+								${project.tags.map(tag => `
+									<span class="px-3 py-1 text-sm bg-gray-900 rounded-full">${tag}</span>
+								`).join('')}
+							</div>
+						` : ''}
+						<div class="flex gap-2 pt-2">
+							${project.link ? `
+								<a
+									href="${project.link}"
+									class="inline-flex items-center gap-1 text-blue-400 hover:underline font-medium text-sm"
+								>
+									프로젝트 보기
+									<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+									</svg>
+								</a>
+							` : ''}
+							<button class="delete-project ml-auto px-3 py-1 bg-red-600 hover:bg-red-700 rounded text-sm" data-id="${project.id}">
+								삭제
+							</button>
+						</div>
+					</div>
+				</article>
+			`).join('');
+
+			// Add delete event listeners
+			document.querySelectorAll('.delete-project').forEach(btn => {
+				btn.addEventListener('click', async (e) => {
+					const id = (e.target as HTMLElement).dataset.id;
+					if (confirm('정말 삭제하시겠습니까?')) {
+						await deleteProject(id!);
+					}
+				});
+			});
+		} catch (error) {
+			console.error('Failed to load projects:', error);
+		}
+	}
+
+	async function deleteProject(id: string) {
+		try {
+			await fetch(`${API_URL}/api/projects/${id}`, {
+				method: 'DELETE'
+			});
+			await loadProjects();
+		} catch (error) {
+			console.error('Failed to delete project:', error);
+			alert('삭제에 실패했습니다.');
+		}
+	}
+
+	// Modal handling
+	const modal = document.getElementById('project-modal');
+	const form = document.getElementById('project-form') as HTMLFormElement;
+	const addBtn = document.getElementById('add-project-btn');
+	const cancelBtn = document.getElementById('cancel-btn');
+
+	addBtn?.addEventListener('click', () => {
+		openModal();
+	});
+
+	cancelBtn?.addEventListener('click', closeModal);
+
+	function openModal() {
+		(document.getElementById('project-title') as HTMLInputElement).value = '';
+		(document.getElementById('project-description') as HTMLTextAreaElement).value = '';
+		(document.getElementById('project-link') as HTMLInputElement).value = '';
+		(document.getElementById('project-tags') as HTMLInputElement).value = '';
+		(document.getElementById('project-id') as HTMLInputElement).value = '';
+
+		modal?.classList.remove('hidden');
+	}
+
+	function closeModal() {
+		modal?.classList.add('hidden');
+	}
+
+	form?.addEventListener('submit', async (e) => {
+		e.preventDefault();
+
+		const title = (document.getElementById('project-title') as HTMLInputElement).value;
+		const description = (document.getElementById('project-description') as HTMLTextAreaElement).value;
+		const link = (document.getElementById('project-link') as HTMLInputElement).value;
+		const tagsInput = (document.getElementById('project-tags') as HTMLInputElement).value;
+
+		const tags = tagsInput ? tagsInput.split(',').map(t => t.trim()).filter(t => t) : [];
+
+		try {
+			await fetch(`${API_URL}/api/projects`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ title, description, link, tags })
+			});
+
+			await loadProjects();
+			closeModal();
+		} catch (error) {
+			console.error('Failed to add project:', error);
+			alert('저장에 실패했습니다.');
+		}
+	});
+
+	// Load initial data
+	loadProjects();
+</script>
