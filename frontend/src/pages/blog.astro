@@ -1,13 +1,13 @@
 ---
 import Layout from '../layouts/Layout.astro';
 
-const pageTitle = 'Blog - CS {["장찬욱"]};';
+const pageTitle = 'Posts - CS {["장찬욱"]};';
 ---
 
 <Layout title={pageTitle} description="모든 블로그 글 보기">
 	<div class="max-w-3xl">
 		<div class="flex justify-between items-center mb-4">
-			<h1 class="text-4xl font-bold">Blog</h1>
+			<h1 class="text-4xl font-bold">Posts</h1>
 			<button id="add-post-btn" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded font-medium">
 				+ 새 글 작성
 			</button>
@@ -90,7 +90,8 @@ const pageTitle = 'Blog - CS {["장찬욱"]};';
 </Layout>
 
 <script>
-	const API_URL = 'http://localhost:3000';
+	const API_URL = '';
+	let editingPostId: string | null = null;
 
 	async function loadPosts() {
 		try {
@@ -111,7 +112,7 @@ const pageTitle = 'Blog - CS {["장찬욱"]};';
 			}
 
 			container.innerHTML = posts.map(post => `
-				<article class="group p-6 rounded-xl border border-gray-800 hover:border-blue-500 transition-colors">
+				<article class="group p-6 rounded-xl border border-gray-800 transition-colors">
 					<div class="flex items-center gap-2 text-sm text-gray-400 mb-3">
 						<time>${new Date(post.date).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}</time>
 						${post.tags && post.tags.length > 0 ? `
@@ -122,15 +123,41 @@ const pageTitle = 'Blog - CS {["장찬욱"]};';
 						` : ''}
 						${post.featured ? '<span class="ml-auto px-2 py-1 bg-blue-600 text-xs rounded">Featured</span>' : ''}
 					</div>
-					<h3 class="text-2xl font-semibold mb-2">${post.title}</h3>
+					<h3 class="text-2xl font-semibold mb-2">
+						<a href="/blog/${post.slug}" class="hover:text-blue-400 transition-colors">${post.title}</a>
+					</h3>
 					<p class="text-gray-400 mb-4">${post.excerpt}</p>
-					<div class="flex gap-2">
+					<div class="flex gap-2 justify-end">
+						<button class="edit-post px-3 py-1 bg-yellow-600 hover:bg-yellow-700 rounded text-sm"
+								data-id="${post.id}"
+								data-title="${encodeURIComponent(post.title)}"
+								data-excerpt="${encodeURIComponent(post.excerpt || '')}"
+								data-content="${encodeURIComponent(post.content || '')}"
+								data-tags="${post.tags ? post.tags.join(',') : ''}"
+								data-featured="${post.featured}">
+							수정
+						</button>
 						<button class="delete-post px-3 py-1 bg-red-600 hover:bg-red-700 rounded text-sm" data-id="${post.id}">
 							삭제
 						</button>
 					</div>
 				</article>
 			`).join('');
+
+			// Add edit event listeners
+			document.querySelectorAll('.edit-post').forEach(btn => {
+				btn.addEventListener('click', (e) => {
+					const target = e.target as HTMLElement;
+					openEditModal(
+						target.dataset.id!,
+						decodeURIComponent(target.dataset.title || ''),
+						decodeURIComponent(target.dataset.excerpt || ''),
+						decodeURIComponent(target.dataset.content || ''),
+						target.dataset.tags || '',
+						target.dataset.featured === 'true'
+					);
+				});
+			});
 
 			// Add delete event listeners
 			document.querySelectorAll('.delete-post').forEach(btn => {
@@ -160,17 +187,21 @@ const pageTitle = 'Blog - CS {["장찬욱"]};';
 
 	// Modal handling
 	const modal = document.getElementById('post-modal');
+	const modalTitle = document.getElementById('modal-title');
 	const form = document.getElementById('post-form') as HTMLFormElement;
 	const addBtn = document.getElementById('add-post-btn');
 	const cancelBtn = document.getElementById('cancel-btn');
 
 	addBtn?.addEventListener('click', () => {
-		openModal();
+		openNewModal();
 	});
 
 	cancelBtn?.addEventListener('click', closeModal);
 
-	function openModal() {
+	function openNewModal() {
+		editingPostId = null;
+		if (modalTitle) modalTitle.textContent = '새 글 작성';
+
 		(document.getElementById('post-title') as HTMLInputElement).value = '';
 		(document.getElementById('post-excerpt') as HTMLTextAreaElement).value = '';
 		(document.getElementById('post-content') as HTMLTextAreaElement).value = '';
@@ -181,8 +212,23 @@ const pageTitle = 'Blog - CS {["장찬욱"]};';
 		modal?.classList.remove('hidden');
 	}
 
+	function openEditModal(id: string, title: string, excerpt: string, content: string, tags: string, featured: boolean) {
+		editingPostId = id;
+		if (modalTitle) modalTitle.textContent = '글 수정';
+
+		(document.getElementById('post-title') as HTMLInputElement).value = title;
+		(document.getElementById('post-excerpt') as HTMLTextAreaElement).value = excerpt;
+		(document.getElementById('post-content') as HTMLTextAreaElement).value = content;
+		(document.getElementById('post-tags') as HTMLInputElement).value = tags;
+		(document.getElementById('post-featured') as HTMLInputElement).checked = featured;
+		(document.getElementById('post-id') as HTMLInputElement).value = id;
+
+		modal?.classList.remove('hidden');
+	}
+
 	function closeModal() {
 		modal?.classList.add('hidden');
+		editingPostId = null;
 	}
 
 	form?.addEventListener('submit', async (e) => {
@@ -197,16 +243,26 @@ const pageTitle = 'Blog - CS {["장찬욱"]};';
 		const tags = tagsInput ? tagsInput.split(',').map(t => t.trim()).filter(t => t) : [];
 
 		try {
-			await fetch(`${API_URL}/api/posts`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ title, excerpt, content, tags, featured })
-			});
+			if (editingPostId) {
+				// UPDATE existing post
+				await fetch(`${API_URL}/api/posts/${editingPostId}`, {
+					method: 'PUT',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ title, excerpt, content, tags, featured })
+				});
+			} else {
+				// CREATE new post
+				await fetch(`${API_URL}/api/posts`, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ title, excerpt, content, tags, featured })
+				});
+			}
 
 			await loadPosts();
 			closeModal();
 		} catch (error) {
-			console.error('Failed to add post:', error);
+			console.error('Failed to save post:', error);
 			alert('저장에 실패했습니다.');
 		}
 	});

@@ -1,0 +1,18 @@
+[Unit]
+Description=Blog Backend API Server
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/jcw/my-blog/backend
+ExecStart=/usr/bin/node app.js
+Restart=always
+RestartSec=10
+StandardOutput=append:/home/jcw/my-blog/backend/logs/backend.log
+StandardError=append:/home/jcw/my-blog/backend/logs/backend-error.log
+
+# 환경 변수
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=default.target

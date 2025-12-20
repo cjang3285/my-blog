@@ -9,7 +9,7 @@ const pageTitle = 'Projects - CS {["장찬욱"]};';
 		<div class="flex justify-between items-center mb-4">
 			<h1 class="text-4xl font-bold">Projects</h1>
 			<button id="add-project-btn" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded font-medium">
-				+ 새 프로젝트
+				+ 새 프로젝트 추가
 			</button>
 		</div>
 		<p class="text-xl text-gray-400 mb-12">
@@ -28,7 +28,7 @@ const pageTitle = 'Projects - CS {["장찬욱"]};';
 			<form id="project-form">
 				<input type="hidden" id="project-id" />
 				<div class="mb-4">
-					<label class="block text-gray-300 mb-2">프로젝트 이름 *</label>
+					<label class="block text-gray-300 mb-2">프로젝트 주제 *</label>
 					<input
 						type="text"
 						id="project-title"
@@ -37,29 +37,31 @@ const pageTitle = 'Projects - CS {["장찬욱"]};';
 					/>
 				</div>
 				<div class="mb-4">
-					<label class="block text-gray-300 mb-2">설명 *</label>
+					<label class="block text-gray-300 mb-2">간단한 소개 *</label>
 					<textarea
 						id="project-description"
 						required
-						rows="4"
+						rows="3"
 						class="w-full px-4 py-2 bg-gray-700 text-gray-100 rounded border border-gray-600 focus:border-blue-400 outline-none"
 					></textarea>
 				</div>
 				<div class="mb-4">
-					<label class="block text-gray-300 mb-2">링크</label>
+					<label class="block text-gray-300 mb-2">기술 스택 (쉼표로 구분) *</label>
 					<input
 						type="text"
-						id="project-link"
-						placeholder="예: /my-project 또는 https://..."
+						id="project-stack"
+						required
+						placeholder="예: React, TypeScript, Node.js"
 						class="w-full px-4 py-2 bg-gray-700 text-gray-100 rounded border border-gray-600 focus:border-blue-400 outline-none"
 					/>
 				</div>
-				<div class="mb-4">
-					<label class="block text-gray-300 mb-2">태그 (쉼표로 구분)</label>
+        <div class="mb-4">
+					<label class="block text-gray-300 mb-2">GitHub 주소 *</label>
 					<input
-						type="text"
-						id="project-tags"
-						placeholder="예: React, TypeScript, API"
+						type="url"
+						id="project-github_url"
+            required
+						placeholder="https://github.com/user/repo"
 						class="w-full px-4 py-2 bg-gray-700 text-gray-100 rounded border border-gray-600 focus:border-blue-400 outline-none"
 					/>
 				</div>
@@ -84,7 +86,8 @@ const pageTitle = 'Projects - CS {["장찬욱"]};';
 </Layout>
 
 <script>
-	const API_URL = 'http://localhost:3000';
+	const API_URL = '';
+	let editingProjectId: string | null = null;
 
 	async function loadProjects() {
 		try {
@@ -105,36 +108,62 @@ const pageTitle = 'Projects - CS {["장찬욱"]};';
 			}
 
 			container.innerHTML = projects.map(project => `
-				<article class="p-6 rounded-xl border border-gray-800 hover:border-blue-500 transition-colors">
-					<div class="space-y-3">
+				<article class="p-6 rounded-xl border border-gray-800 flex flex-col">
+					<div class="space-y-3 flex-grow">
 						<h3 class="text-xl font-semibold">${project.title}</h3>
 						<p class="text-gray-400">${project.description}</p>
-						${project.tags && project.tags.length > 0 ? `
+						${project.stack && project.stack.length > 0 ? `
 							<div class="flex flex-wrap gap-2">
-								${project.tags.map(tag => `
+								${project.stack.map(tag => `
 									<span class="px-3 py-1 text-sm bg-gray-900 rounded-full">${tag}</span>
 								`).join('')}
 							</div>
 						` : ''}
-						<div class="flex gap-2 pt-2">
-							${project.link ? `
-								<a
-									href="${project.link}"
-									class="inline-flex items-center gap-1 text-blue-400 hover:underline font-medium text-sm"
-								>
-									프로젝트 보기
-									<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
-									</svg>
-								</a>
-							` : ''}
-							<button class="delete-project ml-auto px-3 py-1 bg-red-600 hover:bg-red-700 rounded text-sm" data-id="${project.id}">
+          </div>
+					<div class="flex gap-2 pt-4 mt-4">
+						${project.github_url ? `
+							<a
+								href="${project.github_url}"
+                target="_blank"
+                rel="noopener noreferrer"
+								class="inline-flex items-center gap-1 text-blue-400 hover:underline font-medium text-sm"
+							>
+								GitHub
+								<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+								</svg>
+							</a>
+						` : ''}
+						<div class="flex gap-2 ml-auto">
+              <button class="edit-project px-3 py-1 bg-yellow-600 hover:bg-yellow-700 rounded text-sm" 
+                  data-id="${project.id}"
+                  data-title="${encodeURIComponent(project.title)}"
+                  data-description="${encodeURIComponent(project.description)}"
+                  data-stack="${project.stack.join(',')}"
+                  data-github_url="${project.github_url}">
+                수정
+              </button>
+							<button class="delete-project px-3 py-1 bg-red-600 hover:bg-red-700 rounded text-sm" data-id="${project.id}">
 								삭제
 							</button>
-						</div>
+            </div>
 					</div>
 				</article>
 			`).join('');
+
+			// Add edit event listeners
+			document.querySelectorAll('.edit-project').forEach(btn => {
+				btn.addEventListener('click', (e) => {
+					const target = e.target as HTMLElement;
+					openEditModal(
+						target.dataset.id!,
+						decodeURIComponent(target.dataset.title || ''),
+						decodeURIComponent(target.dataset.description || ''),
+						target.dataset.stack || '',
+						target.dataset.github_url || ''
+					);
+				});
+			});
 
 			// Add delete event listeners
 			document.querySelectorAll('.delete-project').forEach(btn => {
@@ -164,28 +193,38 @@ const pageTitle = 'Projects - CS {["장찬욱"]};';
 
 	// Modal handling
 	const modal = document.getElementById('project-modal');
+	const modalTitle = document.getElementById('modal-title');
 	const form = document.getElementById('project-form') as HTMLFormElement;
 	const addBtn = document.getElementById('add-project-btn');
 	const cancelBtn = document.getElementById('cancel-btn');
 
-	addBtn?.addEventListener('click', () => {
-		openModal();
-	});
-
+	addBtn?.addEventListener('click', () => openNewModal());
 	cancelBtn?.addEventListener('click', closeModal);
 
-	function openModal() {
-		(document.getElementById('project-title') as HTMLInputElement).value = '';
-		(document.getElementById('project-description') as HTMLTextAreaElement).value = '';
-		(document.getElementById('project-link') as HTMLInputElement).value = '';
-		(document.getElementById('project-tags') as HTMLInputElement).value = '';
+	function openNewModal() {
+		editingProjectId = null;
+		if (modalTitle) modalTitle.textContent = '새 프로젝트 추가';
+    form.reset();
 		(document.getElementById('project-id') as HTMLInputElement).value = '';
+		modal?.classList.remove('hidden');
+	}
+
+  function openEditModal(id: string, title: string, description: string, stack: string, github_url: string) {
+		editingProjectId = id;
+		if (modalTitle) modalTitle.textContent = '프로젝트 수정';
+
+		(document.getElementById('project-title') as HTMLInputElement).value = title;
+		(document.getElementById('project-description') as HTMLTextAreaElement).value = description;
+		(document.getElementById('project-stack') as HTMLInputElement).value = stack;
+		(document.getElementById('project-github_url') as HTMLInputElement).value = github_url;
+		(document.getElementById('project-id') as HTMLInputElement).value = id;
 
 		modal?.classList.remove('hidden');
 	}
 
 	function closeModal() {
 		modal?.classList.add('hidden');
+		editingProjectId = null;
 	}
 
 	form?.addEventListener('submit', async (e) => {
@@ -193,23 +232,40 @@ const pageTitle = 'Projects - CS {["장찬욱"]};';
 
 		const title = (document.getElementById('project-title') as HTMLInputElement).value;
 		const description = (document.getElementById('project-description') as HTMLTextAreaElement).value;
-		const link = (document.getElementById('project-link') as HTMLInputElement).value;
-		const tagsInput = (document.getElementById('project-tags') as HTMLInputElement).value;
+		const stackInput = (document.getElementById('project-stack') as HTMLInputElement).value;
+    const github_url = (document.getElementById('project-github_url') as HTMLInputElement).value;
 
-		const tags = tagsInput ? tagsInput.split(',').map(t => t.trim()).filter(t => t) : [];
+		const stack = stackInput ? stackInput.split(',').map(t => t.trim()).filter(t => t) : [];
+    const projectData = { title, description, stack, github_url };
 
 		try {
-			await fetch(`${API_URL}/api/projects`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ title, description, link, tags })
-			});
+      let response;
+			if (editingProjectId) {
+				// UPDATE existing project
+				response = await fetch(`${API_URL}/api/projects/${editingProjectId}`, {
+					method: 'PUT',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify(projectData)
+				});
+			} else {
+				// CREATE new project
+				response = await fetch(`${API_URL}/api/projects`, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify(projectData)
+				});
+			}
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || '저장에 실패했습니다.');
+      }
 
 			await loadProjects();
 			closeModal();
 		} catch (error) {
-			console.error('Failed to add project:', error);
-			alert('저장에 실패했습니다.');
+			console.error('Failed to save project:', error);
+			alert(error.message);
 		}
 	});
 

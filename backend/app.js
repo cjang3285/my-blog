@@ -6,6 +6,7 @@ import conferenceRoutes from './routes/conferenceRoutes.js';
 import postRoutes from './routes/postRoutes.js';
 import kanbanRoutes from './routes/kanbanRoutes.js';
 import projectRoutes from './routes/projectRoutes.js';
+import healthRoutes from './routes/healthRoutes.js';
 
 const app = express();
 const PORT = 3000;
@@ -20,6 +21,7 @@ app.use('/api/conferences', conferenceRoutes);
 app.use('/api/posts', postRoutes);
 app.use('/api/kanban', kanbanRoutes);
 app.use('/api/projects', projectRoutes);
+app.use('/api', healthRoutes);
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
