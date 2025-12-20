@@ -1,74 +1,66 @@
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import pool from '../config/db.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+export const getAllProjects = async () => {
+  const result = await pool.query('SELECT * FROM projects ORDER BY created_at DESC');
+  return result.rows;
+};
 
-const filePath = path.join(__dirname, '../data/projects.json');
+export const createProject = async (projectData) => {
+  const { title, description, stack, github_url } = projectData;
+  const result = await pool.query(
+    'INSERT INTO projects (title, description, stack, github_url) VALUES ($1, $2, $3, $4) RETURNING *',
+    [title, description, stack, github_url]
+  );
+  return result.rows[0];
+};
 
-export const loadProjects = () => {
-  if (!fs.existsSync(filePath)) {
-    return [];
+export const getProjectById = async (id) => {
+  const result = await pool.query('SELECT * FROM projects WHERE id = $1', [id]);
+  return result.rows[0];
+};
+
+export const updateProject = async (id, projectData) => {
+  const { title, description, stack, github_url } = projectData;
+
+  // Build dynamic update query
+  const updates = [];
+  const values = [];
+  let paramCount = 1;
+
+  if (title !== undefined) {
+    updates.push(`title = $${paramCount}`);
+    values.push(title);
+    paramCount++;
   }
-  const data = fs.readFileSync(filePath, 'utf8');
-  return JSON.parse(data);
-};
-
-export const saveProjects = (projects) => {
-  const dir = path.dirname(filePath);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
+  if (description !== undefined) {
+    updates.push(`description = $${paramCount}`);
+    values.push(description);
+    paramCount++;
   }
-  fs.writeFileSync(filePath, JSON.stringify(projects, null, 2));
-};
-
-export const getAllProjects = () => {
-  return loadProjects();
-};
-
-export const createProject = (projectData) => {
-  const projects = loadProjects();
-  const newProject = {
-    id: new Date().getTime(), // Simple unique ID
-    ...projectData,
-  };
-  projects.unshift(newProject); // Add to the beginning of the list
-  saveProjects(projects);
-  return newProject;
-};
-
-export const getProjectById = (id) => {
-  const projects = loadProjects();
-  return projects.find(p => p.id === parseInt(id, 10));
-};
-
-export const updateProject = (id, projectData) => {
-  const projects = loadProjects();
-  const projectIndex = projects.findIndex(p => p.id === parseInt(id, 10));
-
-  if (projectIndex === -1) {
-    return null; // Not found
+  if (stack !== undefined) {
+    updates.push(`stack = $${paramCount}`);
+    values.push(stack);
+    paramCount++;
+  }
+  if (github_url !== undefined) {
+    updates.push(`github_url = $${paramCount}`);
+    values.push(github_url);
+    paramCount++;
   }
 
-  const updatedProject = {
-    ...projects[projectIndex],
-    ...projectData,
-  };
-  projects[projectIndex] = updatedProject;
-  saveProjects(projects);
-  return updatedProject;
-};
-
-export const deleteProject = (id) => {
-  const projects = loadProjects();
-  const initialLength = projects.length;
-  const updatedProjects = projects.filter(p => p.id !== parseInt(id, 10));
-
-  if (updatedProjects.length === initialLength) {
-    return null; // Not found
+  if (updates.length === 0) {
+    return getProjectById(id);
   }
 
-  saveProjects(updatedProjects);
-  return { id: parseInt(id, 10) }; // Return the deleted ID
+  updates.push(`updated_at = CURRENT_TIMESTAMP`);
+  values.push(id);
+
+  const query = `UPDATE projects SET ${updates.join(', ')} WHERE id = $${paramCount} RETURNING *`;
+  const result = await pool.query(query, values);
+  return result.rows[0];
+};
+
+export const deleteProject = async (id) => {
+  const result = await pool.query('DELETE FROM projects WHERE id = $1 RETURNING *', [id]);
+  return result.rows[0];
 };

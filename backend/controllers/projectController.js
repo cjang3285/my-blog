@@ -7,9 +7,9 @@ import {
 } from '../services/projectService.js';
 
 // GET /api/projects - Get all projects
-export const getProjects = (req, res) => {
+export const getProjects = async (req, res) => {
   try {
-    const projects = getAllProjects();
+    const projects = await getAllProjects();
     res.json(projects);
   } catch (error) {
     console.error('Error fetching projects:', error);
@@ -18,7 +18,7 @@ export const getProjects = (req, res) => {
 };
 
 // POST /api/projects - Create new project
-export const addProject = (req, res) => {
+export const addProject = async (req, res) => {
   try {
     const { title, description, stack, github_url } = req.body;
 
@@ -26,7 +26,7 @@ export const addProject = (req, res) => {
       return res.status(400).json({ error: 'Title, description, stack, and github_url are required' });
     }
 
-    const newProject = createProject({ title, description, stack, github_url });
+    const newProject = await createProject({ title, description, stack, github_url });
     res.status(201).json(newProject);
   } catch (error) {
     console.error('Error creating project:', error);
@@ -35,16 +35,16 @@ export const addProject = (req, res) => {
 };
 
 // PUT /api/projects/:id - Update project
-export const updateProject = (req, res) => {
+export const updateProject = async (req, res) => {
   try {
     const { id } = req.params;
-    const existingProject = getProjectById(id);
+    const existingProject = await getProjectById(id);
 
     if (!existingProject) {
       return res.status(404).json({ error: 'Project not found' });
     }
 
-    const updatedProject = updateProjectService(id, req.body);
+    const updatedProject = await updateProjectService(id, req.body);
     res.json(updatedProject);
   } catch (error) {
     console.error('Error updating project:', error);
@@ -53,10 +53,10 @@ export const updateProject = (req, res) => {
 };
 
 // DELETE /api/projects/:id - Delete project
-export const deleteProject = (req, res) => {
+export const deleteProject = async (req, res) => {
   try {
     const { id } = req.params;
-    const deletedProject = deleteProjectService(id);
+    const deletedProject = await deleteProjectService(id);
 
     if (!deletedProject) {
       return res.status(404).json({ error: 'Project not found' });
