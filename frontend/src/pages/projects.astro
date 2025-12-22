@@ -110,7 +110,9 @@ const pageTitle = 'Projects - CS {["장찬욱"]};';
 			container.innerHTML = projects.map(project => `
 				<article class="p-6 rounded-xl border border-gray-800 flex flex-col">
 					<div class="space-y-3 flex-grow">
-						<h3 class="text-xl font-semibold">${project.title}</h3>
+						<h3 class="text-xl font-semibold">
+							<a href="/projects/${project.id}" class="hover:text-blue-400 transition-colors">${project.title}</a>
+						</h3>
 						<p class="text-gray-400">${project.description}</p>
 						${project.stack && project.stack.length > 0 ? `
 							<div class="flex flex-wrap gap-2">

@@ -17,6 +17,23 @@ export const getProjects = (req, res) => {
   }
 };
 
+// GET /api/projects/:id - Get single project by ID
+export const getProject = (req, res) => {
+  try {
+    const { id } = req.params;
+    const project = getProjectById(id);
+
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    res.json(project);
+  } catch (error) {
+    console.error('Error fetching project:', error);
+    res.status(500).json({ error: 'Failed to fetch project' });
+  }
+};
+
 // POST /api/projects - Create new project
 export const addProject = (req, res) => {
   try {
