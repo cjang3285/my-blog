@@ -5,6 +5,8 @@ node_modules/
 # Logs
 *.log
 npm-debug.log*
+logs/
+backend/logs/
 
 # Testing
 coverage/
