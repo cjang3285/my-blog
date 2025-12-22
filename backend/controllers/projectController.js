@@ -7,9 +7,9 @@ import {
 } from '../services/projectService.js';
 
 // GET /api/projects - Get all projects
-export const getProjects = (req, res) => {
+export const getProjects = async (req, res) => {
   try {
-    const projects = getAllProjects();
+    const projects = await getAllProjects();
     res.json(projects);
   } catch (error) {
     console.error('Error fetching projects:', error);
@@ -18,10 +18,14 @@ export const getProjects = (req, res) => {
 };
 
 // GET /api/projects/:id - Get single project by ID
-export const getProject = (req, res) => {
+export const getProject = async (req, res) => {
   try {
-    const { id } = req.params;
-    const project = getProjectById(id);
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: 'Invalid project ID' });
+    }
+
+    const project = await getProjectById(id);
 
     if (!project) {
       return res.status(404).json({ error: 'Project not found' });
@@ -35,7 +39,7 @@ export const getProject = (req, res) => {
 };
 
 // POST /api/projects - Create new project
-export const addProject = (req, res) => {
+export const addProject = async (req, res) => {
   try {
     const { title, description, stack, github_url } = req.body;
 
@@ -43,37 +47,53 @@ export const addProject = (req, res) => {
       return res.status(400).json({ error: 'Title, description, stack, and github_url are required' });
     }
 
-    const newProject = createProject({ title, description, stack, github_url });
+    const newProject = await createProject({ title, description, stack, github_url });
     res.status(201).json(newProject);
   } catch (error) {
     console.error('Error creating project:', error);
+    if (error.code === '23505') {
+      return res.status(409).json({ error: 'A project with this title already exists' });
+    }
     res.status(500).json({ error: 'Failed to create project' });
   }
 };
 
 // PUT /api/projects/:id - Update project
-export const updateProject = (req, res) => {
+export const updateProject = async (req, res) => {
   try {
-    const { id } = req.params;
-    const existingProject = getProjectById(id);
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: 'Invalid project ID' });
+    }
+
+    const existingProject = await getProjectById(id);
 
     if (!existingProject) {
       return res.status(404).json({ error: 'Project not found' });
     }
 
-    const updatedProject = updateProjectService(id, req.body);
+    const { title, description, stack, github_url } = req.body;
+    const updatedProject = await updateProjectService(id, { title, description, stack, github_url });
+
     res.json(updatedProject);
   } catch (error) {
     console.error('Error updating project:', error);
+    if (error.code === '23505') {
+      return res.status(409).json({ error: 'A project with this title already exists' });
+    }
     res.status(500).json({ error: 'Failed to update project' });
   }
 };
 
 // DELETE /api/projects/:id - Delete project
-export const deleteProject = (req, res) => {
+export const deleteProject = async (req, res) => {
   try {
-    const { id } = req.params;
-    const deletedProject = deleteProjectService(id);
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: 'Invalid project ID' });
+    }
+
+    const deletedProject = await deleteProjectService(id);
 
     if (!deletedProject) {
       return res.status(404).json({ error: 'Project not found' });
