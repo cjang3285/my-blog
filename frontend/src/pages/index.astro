@@ -1,11 +1,13 @@
 ---
+export const prerender = false;
+
 import Layout from '../layouts/Layout.astro';
 import Hero from '../components/Hero.astro';
 import BlogCard from '../components/BlogCard.astro';
 import ProjectCard from '../components/ProjectCard.astro';
 
 // Fetch featured blog posts from backend
-const API_URL = 'http://localhost:3000';
+const API_URL = import.meta.env.API_URL || '';
 let featuredPosts = [];
 
 try {

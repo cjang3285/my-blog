@@ -1,7 +1,10 @@
 ---
+export const prerender = false;
+
 import Layout from '../layouts/Layout.astro';
 
-const res = await fetch('http://172.30.1.95:3000/api/releases');
+const API_URL = import.meta.env.API_URL || '';
+const res = await fetch(`${API_URL}/api/releases`);
 const releases: string[] = await res.json();
 ---
 
@@ -13,8 +16,8 @@ const releases: string[] = await res.json();
       <ul class="space-y-3">
         {releases.map(file => (
           <li>
-            <a 
-              href={`http://172.30.1.95:3000/api/releases/download/${file}`}
+            <a
+              href={`/api/releases/download/${file}`}
               class="text-blue-600 hover:underline"
             >
               {file}
