@@ -28,11 +28,21 @@ const { id } = Astro.params;
           />
         </div>
         <div class="mb-4">
-          <label class="block text-gray-300 mb-2">간단한 소개 *</label>
+          <label class="block text-gray-300 mb-2">간단한 소개 * (리스트/칸반에 표시)</label>
           <textarea
             id="project-description"
             required
-            rows="3"
+            rows="2"
+            placeholder="프로젝트의 핵심 내용을 간단히 요약해주세요"
+            class="w-full px-4 py-2 bg-gray-700 text-gray-100 rounded border border-gray-600 focus:border-blue-400 outline-none"
+          ></textarea>
+        </div>
+        <div class="mb-4">
+          <label class="block text-gray-300 mb-2">상세 본문 (상세 페이지에 표시)</label>
+          <textarea
+            id="project-content"
+            rows="6"
+            placeholder="프로젝트의 목적, 구현 내용, 배운 점 등을 자세히 작성해주세요"
             class="w-full px-4 py-2 bg-gray-700 text-gray-100 rounded border border-gray-600 focus:border-blue-400 outline-none"
           ></textarea>
         </div>
@@ -150,6 +160,16 @@ const { id } = Astro.params;
               <p class="text-lg text-gray-300 leading-relaxed">${project.description}</p>
             </section>
 
+            <!-- Content (상세 본문) -->
+            ${project.content ? `
+              <section>
+                <h2 class="text-2xl font-semibold mb-4 text-gray-200">상세 내용</h2>
+                <div class="prose prose-invert max-w-none">
+                  <p class="text-gray-300 leading-relaxed whitespace-pre-wrap">${project.content}</p>
+                </div>
+              </section>
+            ` : ''}
+
             <!-- Tech Stack -->
             ${project.stack && project.stack.length > 0 ? `
               <section>
@@ -218,6 +238,7 @@ const { id } = Astro.params;
 
     (document.getElementById('project-title')).value = currentProject.title;
     (document.getElementById('project-description')).value = currentProject.description;
+    (document.getElementById('project-content')).value = currentProject.content || '';
     (document.getElementById('project-stack')).value = currentProject.stack ? currentProject.stack.join(', ') : '';
     (document.getElementById('project-github_url')).value = currentProject.github_url || '';
 
@@ -258,6 +279,7 @@ const { id } = Astro.params;
 
     const title = (document.getElementById('project-title')).value;
     const description = (document.getElementById('project-description')).value;
+    const content = (document.getElementById('project-content')).value;
     const stackInput = (document.getElementById('project-stack')).value;
     const github_url = (document.getElementById('project-github_url')).value;
 
@@ -268,7 +290,7 @@ const { id } = Astro.params;
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ title, description, stack, github_url })
+        body: JSON.stringify({ title, description, content, stack, github_url })
       });
 
       if (response.ok) {

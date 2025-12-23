@@ -78,11 +78,21 @@ const pageTitle = 'Projects - CS {["장찬욱"]};';
 					/>
 				</div>
 				<div class="mb-4">
-					<label class="block text-gray-300 mb-2">간단한 소개 *</label>
+					<label class="block text-gray-300 mb-2">간단한 소개 * (리스트/칸반에 표시)</label>
 					<textarea
 						id="project-description"
 						required
-						rows="3"
+						rows="2"
+						placeholder="프로젝트의 핵심 내용을 간단히 요약해주세요"
+						class="w-full px-4 py-2 bg-gray-700 text-gray-100 rounded border border-gray-600 focus:border-blue-400 outline-none"
+					></textarea>
+				</div>
+				<div class="mb-4">
+					<label class="block text-gray-300 mb-2">상세 본문 (상세 페이지에 표시)</label>
+					<textarea
+						id="project-content"
+						rows="6"
+						placeholder="프로젝트의 목적, 구현 내용, 배운 점 등을 자세히 작성해주세요"
 						class="w-full px-4 py-2 bg-gray-700 text-gray-100 rounded border border-gray-600 focus:border-blue-400 outline-none"
 					></textarea>
 				</div>
@@ -234,11 +244,12 @@ const pageTitle = 'Projects - CS {["장찬욱"]};';
 
 		const title = (document.getElementById('project-title') as HTMLInputElement).value;
 		const description = (document.getElementById('project-description') as HTMLTextAreaElement).value;
+		const content = (document.getElementById('project-content') as HTMLTextAreaElement).value;
 		const stackInput = (document.getElementById('project-stack') as HTMLInputElement).value;
     const github_url = (document.getElementById('project-github_url') as HTMLInputElement).value;
 
 		const stack = stackInput ? stackInput.split(',').map(t => t.trim()).filter(t => t) : [];
-    const projectData = { title, description, stack, github_url };
+    const projectData = { title, description, content, stack, github_url };
 
 		try {
 			// CREATE new project

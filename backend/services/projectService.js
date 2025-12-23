@@ -33,7 +33,7 @@ export const createProject = async (projectData) => {
   try {
     await client.query('BEGIN');
 
-    const { title, description, stack = [], github_url } = projectData;
+    const { title, description, content = '', stack = [], github_url } = projectData;
 
     // Shift all existing todo cards down by 1
     await client.query(
@@ -44,10 +44,10 @@ export const createProject = async (projectData) => {
 
     // Insert new project at position 0 in todo column
     const result = await client.query(
-      `INSERT INTO projects (title, description, stack, github_url, kanban_status, kanban_position)
-       VALUES ($1, $2, $3, $4, 'todo', 0)
+      `INSERT INTO projects (title, description, content, stack, github_url, kanban_status, kanban_position)
+       VALUES ($1, $2, $3, $4, $5, 'todo', 0)
        RETURNING *`,
-      [title, description, stack, github_url]
+      [title, description, content, stack, github_url]
     );
 
     await client.query('COMMIT');
@@ -64,7 +64,7 @@ export const createProject = async (projectData) => {
 // Update existing project
 export const updateProject = async (id, projectData) => {
   try {
-    const { title, description, stack, github_url } = projectData;
+    const { title, description, content, stack, github_url } = projectData;
 
     const updates = [];
     const values = [];
@@ -78,6 +78,11 @@ export const updateProject = async (id, projectData) => {
     if (description !== undefined) {
       updates.push(`description = $${paramCount}`);
       values.push(description);
+      paramCount++;
+    }
+    if (content !== undefined) {
+      updates.push(`content = $${paramCount}`);
+      values.push(content);
       paramCount++;
     }
     if (stack !== undefined) {
