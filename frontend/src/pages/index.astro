@@ -82,7 +82,8 @@ try {
 					<ProjectCard
 						title={project.title}
 						description={project.description}
-						link={`/projects/${project.id}`}
+						detailLink={`/projects/${project.id}`}
+						githubUrl={project.github_url}
 						tags={project.stack || []}
 					/>
 				))

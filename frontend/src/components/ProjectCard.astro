@@ -2,13 +2,14 @@
 interface Props {
 	title: string;
 	description: string;
-	link: string;
+	detailLink: string;
+	githubUrl?: string;
 	tags?: string[];
 }
 
-const { title, description, link, tags = [] } = Astro.props;
+const { title, description, detailLink, githubUrl, tags = [] } = Astro.props;
 ---
-<article class="p-6 rounded-xl border border-gray-200 dark:border-gray-800 hover:border-blue-500 dark:hover:border-blue-500 transition-colors">
+<a href={detailLink} class="block p-6 rounded-xl border border-gray-200 dark:border-gray-800 hover:border-blue-500 dark:hover:border-blue-500 transition-colors cursor-pointer">
 	<div class="space-y-3">
 		<h3 class="text-xl font-semibold">
 			{title}
@@ -25,14 +26,19 @@ const { title, description, link, tags = [] } = Astro.props;
 				))}
 			</div>
 		)}
-		<a
-			href={link}
-			class="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline font-medium"
-		>
-			프로젝트 보기
-			<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
-			</svg>
-		</a>
+		{githubUrl && (
+			<a
+				href={githubUrl}
+				target="_blank"
+				rel="noopener noreferrer"
+				onclick="event.stopPropagation()"
+				class="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline font-medium"
+			>
+				GitHub에서 보기
+				<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+				</svg>
+			</a>
+		)}
 	</div>
-</article>
+</a>
