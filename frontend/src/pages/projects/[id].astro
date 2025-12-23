@@ -12,14 +12,95 @@ const { id } = Astro.params;
       <p class="text-gray-400">로딩 중...</p>
     </div>
   </div>
+
+  <!-- Edit Project Modal -->
+  <div id="project-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 overflow-y-auto">
+    <div class="bg-gray-800 p-6 rounded-lg w-full max-w-2xl m-4">
+      <h3 id="modal-title" class="text-2xl font-semibold mb-4">프로젝트 수정</h3>
+      <form id="project-form">
+        <div class="mb-4">
+          <label class="block text-gray-300 mb-2">프로젝트 주제 *</label>
+          <input
+            type="text"
+            id="project-title"
+            required
+            class="w-full px-4 py-2 bg-gray-700 text-gray-100 rounded border border-gray-600 focus:border-blue-400 outline-none"
+          />
+        </div>
+        <div class="mb-4">
+          <label class="block text-gray-300 mb-2">간단한 소개 *</label>
+          <textarea
+            id="project-description"
+            required
+            rows="3"
+            class="w-full px-4 py-2 bg-gray-700 text-gray-100 rounded border border-gray-600 focus:border-blue-400 outline-none"
+          ></textarea>
+        </div>
+        <div class="mb-4">
+          <label class="block text-gray-300 mb-2">기술 스택 (쉼표로 구분) *</label>
+          <input
+            type="text"
+            id="project-stack"
+            required
+            placeholder="예: React, TypeScript, Node.js"
+            class="w-full px-4 py-2 bg-gray-700 text-gray-100 rounded border border-gray-600 focus:border-blue-400 outline-none"
+          />
+        </div>
+        <div class="mb-4">
+          <label class="block text-gray-300 mb-2">GitHub 주소 *</label>
+          <input
+            type="url"
+            id="project-github_url"
+            required
+            placeholder="https://github.com/user/repo"
+            class="w-full px-4 py-2 bg-gray-700 text-gray-100 rounded border border-gray-600 focus:border-blue-400 outline-none"
+          />
+        </div>
+        <div class="flex gap-2 justify-end">
+          <button
+            type="button"
+            id="cancel-btn"
+            class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded"
+          >
+            취소
+          </button>
+          <button
+            type="submit"
+            class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded"
+          >
+            저장
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
 </Layout>
 
 <script define:vars={{ id }}>
   const API_URL = '';
+  let currentProject = null;
+  let isAuthenticated = false;
+
+  // Check authentication status
+  async function checkAuth() {
+    try {
+      const response = await fetch(`${API_URL}/api/auth/check`, {
+        credentials: 'include'
+      });
+      const data = await response.json();
+      isAuthenticated = data.isAuthenticated;
+    } catch (error) {
+      console.error('Auth check failed:', error);
+      isAuthenticated = false;
+    }
+  }
 
   async function loadProject() {
     const loading = document.getElementById('loading');
     const container = document.getElementById('project-content');
+
+    // Check auth first
+    await checkAuth();
 
     try {
       const response = await fetch(`${API_URL}/api/projects/${id}`);
@@ -39,6 +120,7 @@ const { id } = Astro.params;
       }
 
       const project = await response.json();
+      currentProject = project;
 
       // Hide loading
       if (loading) loading.remove();
@@ -49,6 +131,16 @@ const { id } = Astro.params;
           <div class="mb-8">
             <a href="/projects" class="text-blue-400 hover:underline mb-4 block">&larr; 모든 프로젝트 목록으로 돌아가기</a>
             <h1 class="text-4xl font-bold mb-4">${project.title}</h1>
+            ${isAuthenticated ? `
+              <div class="flex gap-2">
+                <button id="edit-btn" class="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 rounded text-sm font-medium">
+                  수정
+                </button>
+                <button id="delete-btn" class="px-4 py-2 bg-red-600 hover:bg-red-700 rounded text-sm font-medium">
+                  삭제
+                </button>
+              </div>
+            ` : ''}
           </div>
 
           <div class="space-y-8">
@@ -98,6 +190,12 @@ const { id } = Astro.params;
 
       // Update page title
       document.title = `${project.title} - Projects - CS {["장찬욱"]};`;
+
+      // Add event listeners for edit and delete buttons (only if authenticated)
+      if (isAuthenticated) {
+        document.getElementById('edit-btn')?.addEventListener('click', openEditModal);
+        document.getElementById('delete-btn')?.addEventListener('click', handleDelete);
+      }
     } catch (error) {
       console.error('Error loading project:', error);
       container.innerHTML = `
@@ -109,6 +207,81 @@ const { id } = Astro.params;
       `;
     }
   }
+
+  // Modal functions
+  const modal = document.getElementById('project-modal');
+  const form = document.getElementById('project-form');
+  const cancelBtn = document.getElementById('cancel-btn');
+
+  function openEditModal() {
+    if (!currentProject) return;
+
+    (document.getElementById('project-title')).value = currentProject.title;
+    (document.getElementById('project-description')).value = currentProject.description;
+    (document.getElementById('project-stack')).value = currentProject.stack ? currentProject.stack.join(', ') : '';
+    (document.getElementById('project-github_url')).value = currentProject.github_url || '';
+
+    modal?.classList.remove('hidden');
+  }
+
+  function closeModal() {
+    modal?.classList.add('hidden');
+  }
+
+  async function handleDelete() {
+    if (!currentProject) return;
+
+    if (!confirm('정말 이 프로젝트를 삭제하시겠습니까?')) return;
+
+    try {
+      const response = await fetch(`${API_URL}/api/projects/${currentProject.id}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        alert('프로젝트가 삭제되었습니다.');
+        window.location.href = '/projects';
+      } else {
+        throw new Error('Failed to delete project');
+      }
+    } catch (error) {
+      console.error('Failed to delete project:', error);
+      alert('삭제에 실패했습니다.');
+    }
+  }
+
+  cancelBtn?.addEventListener('click', closeModal);
+
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const title = (document.getElementById('project-title')).value;
+    const description = (document.getElementById('project-description')).value;
+    const stackInput = (document.getElementById('project-stack')).value;
+    const github_url = (document.getElementById('project-github_url')).value;
+
+    const stack = stackInput ? stackInput.split(',').map(t => t.trim()).filter(t => t) : [];
+
+    try {
+      const response = await fetch(`${API_URL}/api/projects/${currentProject.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ title, description, stack, github_url })
+      });
+
+      if (response.ok) {
+        closeModal();
+        await loadProject(); // Reload project to show updates
+      } else {
+        throw new Error('Failed to update project');
+      }
+    } catch (error) {
+      console.error('Failed to save project:', error);
+      alert('저장에 실패했습니다.');
+    }
+  });
 
   // Load project on page load
   loadProject();

@@ -129,6 +129,27 @@ const pageTitle = 'Projects - CS {["장찬욱"]};';
 <script>
 	const API_URL = '';
 	let editingProjectId: string | null = null;
+	let isAuthenticated = false;
+
+	// Check authentication status
+	async function checkAuth() {
+		try {
+			const response = await fetch(`${API_URL}/api/auth/check`, {
+				credentials: 'include'
+			});
+			const data = await response.json();
+			isAuthenticated = data.isAuthenticated;
+
+			// Show/hide add button
+			const addBtn = document.getElementById('add-project-btn');
+			if (addBtn) {
+				addBtn.style.display = isAuthenticated ? 'block' : 'none';
+			}
+		} catch (error) {
+			console.error('Auth check failed:', error);
+			isAuthenticated = false;
+		}
+	}
 
 	async function loadProjects() {
 		try {
@@ -177,60 +198,11 @@ const pageTitle = 'Projects - CS {["장찬욱"]};';
 								</svg>
 							</a>
 						` : ''}
-						<div class="flex gap-2 ml-auto">
-              <button class="edit-project px-3 py-1 bg-yellow-600 hover:bg-yellow-700 rounded text-sm" 
-                  data-id="${project.id}"
-                  data-title="${encodeURIComponent(project.title)}"
-                  data-description="${encodeURIComponent(project.description)}"
-                  data-stack="${project.stack.join(',')}"
-                  data-github_url="${project.github_url}">
-                수정
-              </button>
-							<button class="delete-project px-3 py-1 bg-red-600 hover:bg-red-700 rounded text-sm" data-id="${project.id}">
-								삭제
-							</button>
-            </div>
 					</div>
 				</article>
 			`).join('');
-
-			// Add edit event listeners
-			document.querySelectorAll('.edit-project').forEach(btn => {
-				btn.addEventListener('click', (e) => {
-					const target = e.target as HTMLElement;
-					openEditModal(
-						target.dataset.id!,
-						decodeURIComponent(target.dataset.title || ''),
-						decodeURIComponent(target.dataset.description || ''),
-						target.dataset.stack || '',
-						target.dataset.github_url || ''
-					);
-				});
-			});
-
-			// Add delete event listeners
-			document.querySelectorAll('.delete-project').forEach(btn => {
-				btn.addEventListener('click', async (e) => {
-					const id = (e.target as HTMLElement).dataset.id;
-					if (confirm('정말 삭제하시겠습니까?')) {
-						await deleteProject(id!);
-					}
-				});
-			});
 		} catch (error) {
 			console.error('Failed to load projects:', error);
-		}
-	}
-
-	async function deleteProject(id: string) {
-		try {
-			await fetch(`${API_URL}/api/projects/${id}`, {
-				method: 'DELETE'
-			});
-			await loadProjects();
-		} catch (error) {
-			console.error('Failed to delete project:', error);
-			alert('삭제에 실패했습니다.');
 		}
 	}
 
@@ -252,19 +224,6 @@ const pageTitle = 'Projects - CS {["장찬욱"]};';
 		modal?.classList.remove('hidden');
 	}
 
-  function openEditModal(id: string, title: string, description: string, stack: string, github_url: string) {
-		editingProjectId = id;
-		if (modalTitle) modalTitle.textContent = '프로젝트 수정';
-
-		(document.getElementById('project-title') as HTMLInputElement).value = title;
-		(document.getElementById('project-description') as HTMLTextAreaElement).value = description;
-		(document.getElementById('project-stack') as HTMLInputElement).value = stack;
-		(document.getElementById('project-github_url') as HTMLInputElement).value = github_url;
-		(document.getElementById('project-id') as HTMLInputElement).value = id;
-
-		modal?.classList.remove('hidden');
-	}
-
 	function closeModal() {
 		modal?.classList.add('hidden');
 		editingProjectId = null;
@@ -282,22 +241,13 @@ const pageTitle = 'Projects - CS {["장찬욱"]};';
     const projectData = { title, description, stack, github_url };
 
 		try {
-      let response;
-			if (editingProjectId) {
-				// UPDATE existing project
-				response = await fetch(`${API_URL}/api/projects/${editingProjectId}`, {
-					method: 'PUT',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify(projectData)
-				});
-			} else {
-				// CREATE new project
-				response = await fetch(`${API_URL}/api/projects`, {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify(projectData)
-				});
-			}
+			// CREATE new project
+			const response = await fetch(`${API_URL}/api/projects`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(projectData),
+				credentials: 'include'
+			});
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -311,9 +261,6 @@ const pageTitle = 'Projects - CS {["장찬욱"]};';
 			alert(error.message);
 		}
 	});
-
-	// Load initial data
-	loadProjects();
 
 	// ============================================
 	// KANBAN BOARD FUNCTIONALITY
@@ -353,8 +300,8 @@ const pageTitle = 'Projects - CS {["장찬욱"]};';
 
 	function createCardElement(card: any, column: string) {
 		const div = document.createElement('div');
-		div.className = 'kanban-card bg-gray-800 p-4 rounded-lg border border-gray-700 hover:border-blue-400 cursor-move transition-colors';
-		div.draggable = true;
+		div.className = 'kanban-card bg-gray-800 p-4 rounded-lg border border-gray-700 hover:border-blue-400 cursor-pointer transition-colors';
+		div.draggable = isAuthenticated; // Only draggable if authenticated
 		div.dataset.cardId = card.id.toString();
 		div.dataset.column = column;
 
@@ -380,9 +327,16 @@ const pageTitle = 'Projects - CS {["장찬욱"]};';
 			</div>
 		`;
 
-		// Drag events
-		div.addEventListener('dragstart', handleDragStart);
-		div.addEventListener('dragend', handleDragEnd);
+		// Click event - navigate to project detail page
+		div.addEventListener('click', () => {
+			window.location.href = `/projects/${card.id}`;
+		});
+
+		// Drag events (only if authenticated)
+		if (isAuthenticated) {
+			div.addEventListener('dragstart', handleDragStart);
+			div.addEventListener('dragend', handleDragEnd);
+		}
 
 		return div;
 	}
@@ -417,6 +371,7 @@ const pageTitle = 'Projects - CS {["장찬욱"]};';
 			await fetch(`${API_URL}/api/kanban/move`, {
 				method: 'PUT',
 				headers: { 'Content-Type': 'application/json' },
+				credentials: 'include',
 				body: JSON.stringify({
 					cardId: draggedCardId,
 					fromColumn: draggedFromColumn,
@@ -441,13 +396,10 @@ const pageTitle = 'Projects - CS {["장찬욱"]};';
 		});
 	});
 
-	// Load kanban board
-	loadKanban();
-
-	// Reload kanban when a project is added/updated/deleted
-	const originalLoadProjects = loadProjects;
-	loadProjects = async function() {
-		await originalLoadProjects();
+	// Load initial data
+	(async () => {
+		await checkAuth();
+		await loadProjects();
 		await loadKanban();
-	};
+	})();
 </script>
