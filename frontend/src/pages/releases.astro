@@ -3,7 +3,8 @@ export const prerender = false;
 
 import Layout from '../layouts/Layout.astro';
 
-const API_URL = import.meta.env.API_URL || '';
+// SSR에서는 백엔드 URL 필요
+const API_URL = import.meta.env.SSR ? 'http://localhost:3000' : '';
 const res = await fetch(`${API_URL}/api/releases`);
 const releases: string[] = await res.json();
 ---

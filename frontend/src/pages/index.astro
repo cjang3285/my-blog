@@ -6,40 +6,36 @@ import Hero from '../components/Hero.astro';
 import BlogCard from '../components/BlogCard.astro';
 import ProjectCard from '../components/ProjectCard.astro';
 
-// Fetch featured blog posts from backend
-const API_URL = import.meta.env.API_URL || '';
-let featuredPosts = [];
+// SSR에서는 백엔드 URL 필요, 클라이언트에서는 상대 URL 사용
+const API_URL = import.meta.env.SSR ? 'http://localhost:3000' : '';
 
+// Fetch latest blog posts (최신 글 3개)
+let featuredPosts = [];
 try {
-	const response = await fetch(`${API_URL}/api/posts/featured`);
+	const response = await fetch(`${API_URL}/api/posts`);
 	if (response.ok) {
-		featuredPosts = await response.json();
+		const allPosts = await response.json();
+		// 최신 3개만 표시
+		featuredPosts = allPosts.slice(0, 3);
 	}
 } catch (error) {
 	console.error('Failed to fetch posts:', error);
 }
 
-// Featured projects data
-const projects = [
-	{
-		title: 'Conferences Management',
-		description: '컨퍼런스 정보를 관리하고 공유하는 시스템',
-		link: '/conferences',
-		tags: ['Express', 'REST API']
-	},
-	{
-		title: 'Release Tracker',
-		description: '소프트웨어 릴리즈 파일을 추적하고 다운로드할 수 있는 도구',
-		link: '/releases',
-		tags: ['Node.js', 'File Management']
-	},
-	{
-		title: 'Status Monitor',
-		description: '시스템 상태를 모니터링하고 표시하는 대시보드',
-		link: '/status',
-		tags: ['Monitoring', 'Dashboard']
+// Fetch completed projects (완료된 프로젝트만)
+let completedProjects = [];
+try {
+	const response = await fetch(`${API_URL}/api/projects`);
+	if (response.ok) {
+		const allProjects = await response.json();
+		// kanban_status가 'done'인 프로젝트만 필터링
+		completedProjects = allProjects
+			.filter(p => p.kanban_status === 'done')
+			.slice(0, 6); // 최대 6개
 	}
-];
+} catch (error) {
+	console.error('Failed to fetch projects:', error);
+}
 ---
 
 <Layout title="Home - My Blog" description="개발자의 학습과 성장을 기록하는 블로그">
@@ -75,20 +71,26 @@ const projects = [
 	<!-- Featured Projects -->
 	<section class="py-12">
 		<div class="flex justify-between items-center mb-8">
-			<h2 class="text-3xl font-bold">프로젝트</h2>
+			<h2 class="text-3xl font-bold">완료된 프로젝트</h2>
 			<a href="/projects" class="text-blue-600 dark:text-blue-400 hover:underline font-medium">
 				전체 보기 →
 			</a>
 		</div>
 		<div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-			{projects.map(project => (
-				<ProjectCard
-					title={project.title}
-					description={project.description}
-					link={project.link}
-					tags={project.tags}
-				/>
-			))}
+			{completedProjects.length > 0 ? (
+				completedProjects.map(project => (
+					<ProjectCard
+						title={project.title}
+						description={project.description}
+						link={`/projects/${project.id}`}
+						tags={project.stack || []}
+					/>
+				))
+			) : (
+				<p class="text-gray-500 dark:text-gray-400 text-center py-12 col-span-3">
+					완료된 프로젝트가 없습니다.
+				</p>
+			)}
 		</div>
 	</section>
 
