@@ -28,9 +28,9 @@ try {
 	const response = await fetch(`${API_URL}/api/projects`);
 	if (response.ok) {
 		const allProjects = await response.json();
-		// kanban_status가 'done'인 프로젝트만 필터링
+		// kanban_status가 'done'이고 유효한 데이터를 가진 프로젝트만 필터링
 		completedProjects = allProjects
-			.filter(p => p.kanban_status === 'done')
+			.filter(p => p.kanban_status === 'done' && p.title && p.description)
 			.slice(0, 6); // 최대 6개
 	}
 } catch (error) {
