@@ -4,7 +4,7 @@ import pool from '../config/db.js';
 export const getKanban = async () => {
   try {
     const result = await pool.query(
-      `SELECT id, title, description, stack, github_url, kanban_status, kanban_position, created_at, updated_at
+      `SELECT id, title, description, content, stack, github_url, kanban_status, kanban_position, created_at, updated_at
        FROM projects
        ORDER BY kanban_status, kanban_position ASC`
     );
