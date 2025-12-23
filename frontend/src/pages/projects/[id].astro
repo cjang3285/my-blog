@@ -6,7 +6,7 @@ const { id } = Astro.params;
 ---
 
 <Layout title="Project Details" description="프로젝트 상세 정보">
-  <div id="project-content" class="max-w-3xl mx-auto">
+  <div id="project-container" class="max-w-3xl mx-auto">
     <!-- Loading state -->
     <div id="loading" class="text-center py-20">
       <p class="text-gray-400">로딩 중...</p>
@@ -107,7 +107,7 @@ const { id } = Astro.params;
 
   async function loadProject() {
     const loading = document.getElementById('loading');
-    const container = document.getElementById('project-content');
+    const container = document.getElementById('project-container');
 
     // Check auth first
     await checkAuth();

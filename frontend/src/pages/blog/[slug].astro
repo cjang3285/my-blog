@@ -6,7 +6,7 @@ const { slug } = Astro.params;
 ---
 
 <Layout title="Blog Post" description="블로그 글 읽기">
-  <div id="post-content" class="max-w-3xl mx-auto">
+  <div id="post-container" class="max-w-3xl mx-auto">
     <!-- Loading state -->
     <div id="loading" class="text-center py-20">
       <p class="text-gray-400">로딩 중...</p>
@@ -102,7 +102,7 @@ const { slug } = Astro.params;
 
   async function loadPost() {
     const loading = document.getElementById('loading');
-    const container = document.getElementById('post-content');
+    const container = document.getElementById('post-container');
 
     // Check auth first
     await checkAuth();
