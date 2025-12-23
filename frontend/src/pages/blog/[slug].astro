@@ -84,10 +84,28 @@ const { slug } = Astro.params;
 <script define:vars={{ slug }}>
   const API_URL = '';
   let currentPost = null;
+  let isAuthenticated = false;
+
+  // Check authentication status
+  async function checkAuth() {
+    try {
+      const response = await fetch(`${API_URL}/api/auth/check`, {
+        credentials: 'include'
+      });
+      const data = await response.json();
+      isAuthenticated = data.isAuthenticated;
+    } catch (error) {
+      console.error('Auth check failed:', error);
+      isAuthenticated = false;
+    }
+  }
 
   async function loadPost() {
     const loading = document.getElementById('loading');
     const container = document.getElementById('post-content');
+
+    // Check auth first
+    await checkAuth();
 
     try {
       const response = await fetch(`${API_URL}/api/posts/${slug}`);
@@ -127,14 +145,16 @@ const { slug } = Astro.params;
                 </div>
               ` : ''}
             </div>
-            <div class="flex gap-2">
-              <button id="edit-btn" class="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 rounded text-sm font-medium">
-                수정
-              </button>
-              <button id="delete-btn" class="px-4 py-2 bg-red-600 hover:bg-red-700 rounded text-sm font-medium">
-                삭제
-              </button>
-            </div>
+            ${isAuthenticated ? `
+              <div class="flex gap-2">
+                <button id="edit-btn" class="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 rounded text-sm font-medium">
+                  수정
+                </button>
+                <button id="delete-btn" class="px-4 py-2 bg-red-600 hover:bg-red-700 rounded text-sm font-medium">
+                  삭제
+                </button>
+              </div>
+            ` : ''}
           </div>
           <div class="text-gray-300 text-lg leading-relaxed">
             <p class="text-xl italic text-gray-400 mb-8">${post.excerpt}</p>
@@ -147,9 +167,11 @@ const { slug } = Astro.params;
       // Update page title
       document.title = `${post.title} - CS {["장찬욱"]};`;
 
-      // Add event listeners for edit and delete buttons
-      document.getElementById('edit-btn')?.addEventListener('click', openEditModal);
-      document.getElementById('delete-btn')?.addEventListener('click', handleDelete);
+      // Add event listeners for edit and delete buttons (only if authenticated)
+      if (isAuthenticated) {
+        document.getElementById('edit-btn')?.addEventListener('click', openEditModal);
+        document.getElementById('delete-btn')?.addEventListener('click', handleDelete);
+      }
     } catch (error) {
       console.error('Error loading post:', error);
       container.innerHTML = `

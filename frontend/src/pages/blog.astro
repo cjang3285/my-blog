@@ -92,6 +92,27 @@ const pageTitle = 'Posts - CS {["장찬욱"]};';
 <script>
 	const API_URL = '';
 	let editingPostId: string | null = null;
+	let isAuthenticated = false;
+
+	// Check authentication status
+	async function checkAuth() {
+		try {
+			const response = await fetch(`${API_URL}/api/auth/check`, {
+				credentials: 'include'
+			});
+			const data = await response.json();
+			isAuthenticated = data.isAuthenticated;
+
+			// Show/hide add button
+			const addBtn = document.getElementById('add-post-btn');
+			if (addBtn) {
+				addBtn.style.display = isAuthenticated ? 'block' : 'none';
+			}
+		} catch (error) {
+			console.error('Auth check failed:', error);
+			isAuthenticated = false;
+		}
+	}
 
 	async function loadPosts() {
 		try {
@@ -203,5 +224,8 @@ const pageTitle = 'Posts - CS {["장찬욱"]};';
 	});
 
 	// Load initial data
-	loadPosts();
+	(async () => {
+		await checkAuth();
+		await loadPosts();
+	})();
 </script>
