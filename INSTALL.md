@@ -55,9 +55,34 @@ cd backend
 pm2 restart ecosystem.config.cjs
 ```
 
-### 로그인
+### 로그인 페이지 접근 방법
 
-브라우저에서 `/admin/login`으로 이동하여 관리자 비밀번호 입력
+#### 1. 서버 내부에서
+```
+http://localhost:4321/admin/login
+```
+- 자동 인증되어 로그인 페이지 접근 불필요
+
+#### 2. 내부 네트워크에서
+```
+http://172.30.1.95:4321/admin/login
+```
+- 브라우저에서 위 URL 접속
+- 관리자 비밀번호 입력 (backend/.env의 ADMIN_PASSWORD)
+- 로그인 후 7일간 세션 유지
+
+#### 3. 외부 네트워크에서 (nginx)
+```
+https://183.101.163.146/admin/login
+```
+- 브라우저에서 위 URL 접속
+- 관리자 비밀번호 입력
+- 로그인 후 7일간 세션 유지
+
+**로그인 후 동작**:
+- 원래 보려던 페이지로 자동 이동 (redirect 파라미터)
+- 관리자 버튼들이 자동으로 표시됨
+- 7일 동안 재로그인 불필요
 
 ## 인증 시스템 개요
 
@@ -120,3 +145,50 @@ https://183.101.163.146
 # backend/.env
 TRUSTED_IPS=your-static-ip-1,your-static-ip-2
 ```
+
+## nginx 리버스 프록시 설정
+
+외부 접속을 위한 nginx 설정 예시:
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name 183.101.163.146;
+
+    # SSL 인증서 설정 (Let's Encrypt 등)
+    ssl_certificate /path/to/cert.pem;
+    ssl_certificate_key /path/to/key.pem;
+
+    # Frontend proxy
+    location / {
+        proxy_pass http://localhost:4321;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+
+    # Backend API proxy
+    location /api {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # 세션 쿠키를 위한 추가 설정
+        proxy_set_header Cookie $http_cookie;
+        proxy_pass_header Set-Cookie;
+    }
+}
+```
+
+**중요 헤더**:
+- `X-Real-IP`: 실제 클라이언트 IP (인증 시스템에서 사용)
+- `X-Forwarded-Proto`: HTTPS 여부 (세션 쿠키 secure 플래그)
+- `Cookie` & `Set-Cookie`: 세션 유지에 필수

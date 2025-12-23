@@ -15,13 +15,33 @@ import authRoutes from './routes/authRoutes.js';
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// CORS configuration - allow credentials
+// CORS configuration - allow multiple origins
+const allowedOrigins = [
+  'http://localhost:4321',
+  'http://127.0.0.1:4321',
+  'http://172.30.1.95:4321',      // 내부 네트워크
+  'https://183.101.163.146',       // nginx 리버스 프록시
+  process.env.FRONTEND_URL         // 환경 변수에서 추가 도메인
+].filter(Boolean);
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:4321',
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl)
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true
 }));
 
 app.use(express.json());
+
+// Trust proxy (nginx 리버스 프록시 사용 시 필요)
+app.set('trust proxy', 1);
 
 // Session middleware
 app.use(session({
@@ -29,9 +49,10 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: process.env.NODE_ENV === 'production', // HTTPS only in production
+    secure: 'auto',  // auto: HTTPS면 secure, HTTP면 non-secure
     httpOnly: true,
-    maxAge: 1000 * 60 * 60 * 24 * 7 // 7 days
+    maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+    sameSite: 'lax'  // CSRF 보호
   }
 }));
 
