@@ -19,8 +19,8 @@ const PORT = process.env.PORT || 3000;
 const allowedOrigins = [
   'http://localhost:4321',
   'http://127.0.0.1:4321',
-  'http://172.30.1.95:4321',      // 내부 네트워크
-  'https://183.101.163.146',       // nginx 리버스 프록시
+  'https://chanwook.kr',           // 프로덕션 도메인
+  'https://www.chanwook.kr',       // www 포함
   process.env.FRONTEND_URL         // 환경 변수에서 추가 도메인
 ].filter(Boolean);
 
