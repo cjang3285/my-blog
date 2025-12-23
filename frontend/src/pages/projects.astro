@@ -16,8 +16,49 @@ const pageTitle = 'Projects - CS {["장찬욱"]};';
 			학습하며 만든 프로젝트들입니다.
 		</p>
 
-		<div id="projects-container" class="grid md:grid-cols-2 gap-6">
+		<div id="projects-container" class="grid md:grid-cols-2 gap-6 mb-16">
 			<!-- Projects will be loaded here -->
+		</div>
+
+		<!-- Kanban Board Section -->
+		<div class="mt-16 pt-16 border-t border-gray-800">
+			<h2 class="text-3xl font-bold mb-8">프로젝트 칸반보드</h2>
+			<p class="text-gray-400 mb-8">프로젝트 진행 상황을 관리합니다. 카드를 드래그하여 상태를 변경할 수 있습니다.</p>
+
+			<div id="kanban-board" class="grid md:grid-cols-3 gap-6">
+				<!-- TODO Column -->
+				<div class="kanban-column" data-column="todo">
+					<div class="flex justify-between items-center mb-4">
+						<h3 class="text-xl font-semibold text-gray-300">📋 Todo</h3>
+						<span id="todo-count" class="text-sm text-gray-500">0</span>
+					</div>
+					<div class="kanban-cards space-y-3 min-h-[400px] p-4 bg-gray-900 rounded-lg" data-column="todo">
+						<!-- Cards will be inserted here -->
+					</div>
+				</div>
+
+				<!-- In Progress Column -->
+				<div class="kanban-column" data-column="inprogress">
+					<div class="flex justify-between items-center mb-4">
+						<h3 class="text-xl font-semibold text-gray-300">🚧 In Progress</h3>
+						<span id="inprogress-count" class="text-sm text-gray-500">0</span>
+					</div>
+					<div class="kanban-cards space-y-3 min-h-[400px] p-4 bg-gray-900 rounded-lg" data-column="inprogress">
+						<!-- Cards will be inserted here -->
+					</div>
+				</div>
+
+				<!-- Done Column -->
+				<div class="kanban-column" data-column="done">
+					<div class="flex justify-between items-center mb-4">
+						<h3 class="text-xl font-semibold text-gray-300">✅ Done</h3>
+						<span id="done-count" class="text-sm text-gray-500">0</span>
+					</div>
+					<div class="kanban-cards space-y-3 min-h-[400px] p-4 bg-gray-900 rounded-lg" data-column="done">
+						<!-- Cards will be inserted here -->
+					</div>
+				</div>
+			</div>
 		</div>
 	</div>
 
@@ -273,4 +314,140 @@ const pageTitle = 'Projects - CS {["장찬욱"]};';
 
 	// Load initial data
 	loadProjects();
+
+	// ============================================
+	// KANBAN BOARD FUNCTIONALITY
+	// ============================================
+
+	let draggedCard: HTMLElement | null = null;
+	let draggedCardId: number | null = null;
+	let draggedFromColumn: string | null = null;
+
+	async function loadKanban() {
+		try {
+			const response = await fetch(`${API_URL}/api/kanban`);
+			const data = await response.json();
+
+			renderColumn('todo', data.todo);
+			renderColumn('inprogress', data.inprogress);
+			renderColumn('done', data.done);
+		} catch (error) {
+			console.error('Failed to load kanban:', error);
+		}
+	}
+
+	function renderColumn(column: string, cards: any[]) {
+		const container = document.querySelector(`.kanban-cards[data-column="${column}"]`);
+		const countEl = document.getElementById(`${column}-count`);
+
+		if (!container) return;
+
+		if (countEl) countEl.textContent = cards.length.toString();
+
+		container.innerHTML = '';
+		cards.forEach(card => {
+			const cardEl = createCardElement(card, column);
+			container.appendChild(cardEl);
+		});
+	}
+
+	function createCardElement(card: any, column: string) {
+		const div = document.createElement('div');
+		div.className = 'kanban-card bg-gray-800 p-4 rounded-lg border border-gray-700 hover:border-blue-400 cursor-move transition-colors';
+		div.draggable = true;
+		div.dataset.cardId = card.id.toString();
+		div.dataset.column = column;
+
+		div.innerHTML = `
+			<div class="mb-2">
+				<h4 class="font-semibold text-gray-100 mb-2">${card.title}</h4>
+				<p class="text-sm text-gray-400 mb-3">${card.description || ''}</p>
+				${card.stack && card.stack.length > 0 ? `
+					<div class="flex flex-wrap gap-1 mb-3">
+						${card.stack.map(tech => `<span class="px-2 py-0.5 text-xs bg-gray-900 rounded">${tech}</span>`).join('')}
+					</div>
+				` : ''}
+				${card.github_url ? `
+					<a href="${card.github_url}" target="_blank" rel="noopener noreferrer"
+					   class="inline-flex items-center gap-1 text-xs text-blue-400 hover:underline"
+					   onclick="event.stopPropagation();">
+						GitHub
+						<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+						</svg>
+					</a>
+				` : ''}
+			</div>
+		`;
+
+		// Drag events
+		div.addEventListener('dragstart', handleDragStart);
+		div.addEventListener('dragend', handleDragEnd);
+
+		return div;
+	}
+
+	function handleDragStart(e: DragEvent) {
+		const target = e.target as HTMLElement;
+		draggedCard = target;
+		draggedCardId = parseInt(target.dataset.cardId || '0');
+		draggedFromColumn = target.dataset.column || null;
+		target.classList.add('opacity-50');
+	}
+
+	function handleDragEnd(e: DragEvent) {
+		const target = e.target as HTMLElement;
+		target.classList.remove('opacity-50');
+	}
+
+	function handleDragOver(e: DragEvent) {
+		e.preventDefault();
+	}
+
+	async function handleDrop(e: DragEvent, column: string) {
+		e.preventDefault();
+
+		if (!draggedCardId || !draggedFromColumn) return;
+
+		const container = e.currentTarget as HTMLElement;
+		const cards = Array.from(container.querySelectorAll('.kanban-card'));
+		const toIndex = cards.length;
+
+		try {
+			await fetch(`${API_URL}/api/kanban/move`, {
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					cardId: draggedCardId,
+					fromColumn: draggedFromColumn,
+					toColumn: column,
+					toIndex
+				})
+			});
+
+			await loadKanban();
+		} catch (error) {
+			console.error('Failed to move card:', error);
+			alert('카드 이동에 실패했습니다.');
+		}
+	}
+
+	// Set up drag and drop on columns
+	document.querySelectorAll('.kanban-cards').forEach(column => {
+		column.addEventListener('dragover', handleDragOver);
+		column.addEventListener('drop', (e) => {
+			const col = (e.currentTarget as HTMLElement).dataset.column!;
+			handleDrop(e as DragEvent, col);
+		});
+	});
+
+	// Load kanban board
+	loadKanban();
+
+	// Reload kanban when a project is added/updated/deleted
+	const originalLoadProjects = loadProjects;
+	loadProjects = async function() {
+		await originalLoadProjects();
+		await loadKanban();
+	};
 </script>
