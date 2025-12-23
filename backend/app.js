@@ -2,6 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import session from 'express-session';
 import cors from 'cors';
+import { autoAuth } from './middleware/auth.js';
 import statusRoutes from './routes/statusRoutes.js';
 import releaseRoutes from './routes/releaseRoutes.js';
 import conferenceRoutes from './routes/conferenceRoutes.js';
@@ -33,6 +34,9 @@ app.use(session({
     maxAge: 1000 * 60 * 60 * 24 * 7 // 7 days
   }
 }));
+
+// Auto-authenticate localhost/trusted IPs
+app.use(autoAuth);
 
 // 라우터 연결
 app.use('/api/auth', authRoutes);
