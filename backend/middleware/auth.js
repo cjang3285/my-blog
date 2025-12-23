@@ -6,7 +6,7 @@ const getClientIp = (req) => {
          req.connection.remoteAddress;
 };
 
-// Check if IP is trusted (localhost)
+// Check if IP is trusted (localhost or private network)
 const isTrustedIp = (ip) => {
   const trustedIps = [
     '127.0.0.1',
@@ -15,10 +15,31 @@ const isTrustedIp = (ip) => {
     '::ffff:127.0.0.1'
   ];
 
+  // Check if IP is from private network
+  const isPrivateNetwork =
+    ip.startsWith('192.168.') ||          // 가정용 네트워크
+    ip.startsWith('10.') ||                // 기업용 네트워크
+    ip.startsWith('172.16.') ||            // 기업용 네트워크
+    ip.startsWith('172.17.') ||
+    ip.startsWith('172.18.') ||
+    ip.startsWith('172.19.') ||
+    ip.startsWith('172.20.') ||
+    ip.startsWith('172.21.') ||
+    ip.startsWith('172.22.') ||
+    ip.startsWith('172.23.') ||
+    ip.startsWith('172.24.') ||
+    ip.startsWith('172.25.') ||
+    ip.startsWith('172.26.') ||
+    ip.startsWith('172.27.') ||
+    ip.startsWith('172.28.') ||
+    ip.startsWith('172.29.') ||
+    ip.startsWith('172.30.') ||
+    ip.startsWith('172.31.');
+
   // Add custom trusted IPs from environment variable
   const customIps = process.env.TRUSTED_IPS?.split(',').map(ip => ip.trim()) || [];
 
-  return trustedIps.includes(ip) || customIps.includes(ip);
+  return trustedIps.includes(ip) || isPrivateNetwork || customIps.includes(ip);
 };
 
 // Auto-authenticate trusted IPs
