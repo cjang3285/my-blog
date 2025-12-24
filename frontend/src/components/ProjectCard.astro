@@ -9,11 +9,13 @@ interface Props {
 
 const { title, description, detailLink, githubUrl, tags = [] } = Astro.props;
 ---
-<a href={detailLink} class="block p-6 rounded-xl border border-gray-200 dark:border-gray-800 hover:border-blue-500 dark:hover:border-blue-500 transition-colors cursor-pointer">
+<div class="block p-6 rounded-xl border border-gray-200 dark:border-gray-800 hover:border-blue-500 dark:hover:border-blue-500 transition-colors">
 	<div class="space-y-3">
-		<h3 class="text-xl font-semibold">
-			{title}
-		</h3>
+		<a href={detailLink}>
+			<h3 class="text-xl font-semibold hover:underline">
+				{title}
+			</h3>
+		</a>
 		<p class="text-gray-600 dark:text-gray-400">
 			{description}
 		</p>
@@ -31,7 +33,6 @@ const { title, description, detailLink, githubUrl, tags = [] } = Astro.props;
 				href={githubUrl}
 				target="_blank"
 				rel="noopener noreferrer"
-				onclick="event.stopPropagation()"
 				class="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline font-medium"
 			>
 				GitHub에서 보기
@@ -41,4 +42,4 @@ const { title, description, detailLink, githubUrl, tags = [] } = Astro.props;
 			</a>
 		)}
 	</div>
-</a>
+</div>
