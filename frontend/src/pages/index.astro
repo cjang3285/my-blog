@@ -7,33 +7,51 @@ import BlogCard from '../components/BlogCard.astro';
 import ProjectCard from '../components/ProjectCard.astro';
 
 const API_URL = import.meta.env.PUBLIC_API_URL || '';
+console.log('[INDEX] API_URL:', API_URL);
 
 // Fetch latest blog posts (최신 글 3개)
 let featuredPosts = [];
+let postsError = null;
 try {
-	const response = await fetch(`${API_URL}/api/posts`);
+	const url = `${API_URL}/api/posts`;
+	console.log('[INDEX] Fetching posts from:', url);
+	const response = await fetch(url);
+	console.log('[INDEX] Posts response status:', response.status);
 	if (response.ok) {
 		const allPosts = await response.json();
+		console.log('[INDEX] Fetched posts count:', allPosts.length);
 		// 최신 3개만 표시
 		featuredPosts = allPosts.slice(0, 3);
+	} else {
+		postsError = `HTTP ${response.status}`;
 	}
 } catch (error) {
-	console.error('Failed to fetch posts:', error);
+	console.error('[INDEX] Failed to fetch posts:', error);
+	postsError = error.message;
 }
 
 // Fetch completed projects (완료된 프로젝트만)
 let completedProjects = [];
+let projectsError = null;
 try {
-	const response = await fetch(`${API_URL}/api/projects`);
+	const url = `${API_URL}/api/projects`;
+	console.log('[INDEX] Fetching projects from:', url);
+	const response = await fetch(url);
+	console.log('[INDEX] Projects response status:', response.status);
 	if (response.ok) {
 		const allProjects = await response.json();
+		console.log('[INDEX] Fetched projects count:', allProjects.length);
 		// kanban_status가 'done'이고 유효한 데이터를 가진 프로젝트만 필터링
 		completedProjects = allProjects
 			.filter(p => p.kanban_status === 'done' && p.title && p.description)
 			.slice(0, 6); // 최대 6개
+		console.log('[INDEX] Completed projects count:', completedProjects.length);
+	} else {
+		projectsError = `HTTP ${response.status}`;
 	}
 } catch (error) {
-	console.error('Failed to fetch projects:', error);
+	console.error('[INDEX] Failed to fetch projects:', error);
+	projectsError = error.message;
 }
 ---
 
@@ -61,7 +79,9 @@ try {
 				))
 			) : (
 				<p class="text-gray-500 dark:text-gray-400 text-center py-12">
-					블로그 글을 불러오는 중입니다... (백엔드 서버를 실행해주세요)
+					{postsError
+						? `에러: ${postsError} (API_URL: ${API_URL || '미설정'})`
+						: '블로그 글을 불러오는 중입니다...'}
 				</p>
 			)}
 		</div>
@@ -88,7 +108,9 @@ try {
 				))
 			) : (
 				<p class="text-gray-500 dark:text-gray-400 text-center py-12 col-span-3">
-					완료된 프로젝트가 없습니다.
+					{projectsError
+						? `에러: ${projectsError} (API_URL: ${API_URL || '미설정'})`
+						: '완료된 프로젝트가 없습니다.'}
 				</p>
 			)}
 		</div>
