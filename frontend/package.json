@@ -3,17 +3,17 @@
   "type": "module",
   "version": "0.0.1",
   "scripts": {
-    "dev": "astro dev",
-    "build": "astro build",
-    "preview": "astro preview",
+    "dev": "astro dev --config ./config/astro.config.mjs",
+    "build": "astro build --config ./config/astro.config.mjs",
+    "preview": "astro preview --config ./config/astro.config.mjs",
     "astro": "astro",
-    "test": "vitest",
-    "test:ui": "vitest --ui",
-    "lint": "eslint .",
-    "lint:fix": "eslint . --fix",
+    "test": "vitest --config ./config/vitest.config.js",
+    "test:ui": "vitest --ui --config ./config/vitest.config.js",
+    "lint": "eslint . --config ./config/eslint.config.js",
+    "lint:fix": "eslint . --fix --config ./config/eslint.config.js",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "type-check": "astro check"
+    "type-check": "astro check --config ./config/astro.config.mjs"
   },
   "dependencies": {
     "@astrojs/node": "^9.0.0",
