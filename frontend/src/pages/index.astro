@@ -1,43 +1,61 @@
 ---
+export const prerender = false;
+
 import Layout from '../layouts/Layout.astro';
 import Hero from '../components/Hero.astro';
 import BlogCard from '../components/BlogCard.astro';
 import ProjectCard from '../components/ProjectCard.astro';
 
-// Fetch featured blog posts from backend
-const API_URL = 'http://localhost:3000';
-let featuredPosts = [];
+// SSR에서는 localhost:3000 사용, 클라이언트에서는 상대 경로 사용
+const API_URL = import.meta.env.SSR
+  ? 'http://localhost:3000'
+  : (import.meta.env.PUBLIC_API_URL || '');
+console.log('[INDEX] SSR:', import.meta.env.SSR, 'API_URL:', API_URL);
 
+// Fetch latest blog posts (최신 글 3개)
+let featuredPosts = [];
+let postsError = null;
 try {
-	const response = await fetch(`${API_URL}/api/posts/featured`);
+	const url = `${API_URL}/api/posts`;
+	console.log('[INDEX] Fetching posts from:', url);
+	const response = await fetch(url);
+	console.log('[INDEX] Posts response status:', response.status);
 	if (response.ok) {
-		featuredPosts = await response.json();
+		const allPosts = await response.json();
+		console.log('[INDEX] Fetched posts count:', allPosts.length);
+		// 최신 3개만 표시
+		featuredPosts = allPosts.slice(0, 3);
+	} else {
+		postsError = `HTTP ${response.status}`;
 	}
 } catch (error) {
-	console.error('Failed to fetch posts:', error);
+	console.error('[INDEX] Failed to fetch posts:', error);
+	postsError = error.message;
 }
 
-// Featured projects data
-const projects = [
-	{
-		title: 'Conferences Management',
-		description: '컨퍼런스 정보를 관리하고 공유하는 시스템',
-		link: '/conferences',
-		tags: ['Express', 'REST API']
-	},
-	{
-		title: 'Release Tracker',
-		description: '소프트웨어 릴리즈 파일을 추적하고 다운로드할 수 있는 도구',
-		link: '/releases',
-		tags: ['Node.js', 'File Management']
-	},
-	{
-		title: 'Status Monitor',
-		description: '시스템 상태를 모니터링하고 표시하는 대시보드',
-		link: '/status',
-		tags: ['Monitoring', 'Dashboard']
+// Fetch completed projects (완료된 프로젝트만)
+let completedProjects = [];
+let projectsError = null;
+try {
+	const url = `${API_URL}/api/projects`;
+	console.log('[INDEX] Fetching projects from:', url);
+	const response = await fetch(url);
+	console.log('[INDEX] Projects response status:', response.status);
+	if (response.ok) {
+		const allProjects = await response.json();
+		console.log('[INDEX] Fetched projects count:', allProjects.length);
+		// kanban_status가 'done'이고 유효한 데이터를 가진 프로젝트만 필터링
+		completedProjects = allProjects
+			.filter(p => p.kanban_status === 'done' && p.title && p.description)
+			.slice(0, 6); // 최대 6개
+		console.log('[INDEX] Completed projects count:', completedProjects.length);
+	} else {
+		projectsError = `HTTP ${response.status}`;
 	}
-];
+} catch (error) {
+	console.error('[INDEX] Failed to fetch projects:', error);
+	projectsError = error.message;
+}
 ---
 
 <Layout title="Home - My Blog" description="개발자의 학습과 성장을 기록하는 블로그">
@@ -64,7 +82,9 @@ const projects = [
 				))
 			) : (
 				<p class="text-gray-500 dark:text-gray-400 text-center py-12">
-					블로그 글을 불러오는 중입니다... (백엔드 서버를 실행해주세요)
+					{postsError
+						? `에러: ${postsError} (API_URL: ${API_URL || '미설정'})`
+						: '블로그 글을 불러오는 중입니다...'}
 				</p>
 			)}
 		</div>
@@ -73,20 +93,29 @@ const projects = [
 	<!-- Featured Projects -->
 	<section class="py-12">
 		<div class="flex justify-between items-center mb-8">
-			<h2 class="text-3xl font-bold">프로젝트</h2>
+			<h2 class="text-3xl font-bold">완료된 프로젝트</h2>
 			<a href="/projects" class="text-blue-600 dark:text-blue-400 hover:underline font-medium">
 				전체 보기 →
 			</a>
 		</div>
 		<div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-			{projects.map(project => (
-				<ProjectCard
-					title={project.title}
-					description={project.description}
-					link={project.link}
-					tags={project.tags}
-				/>
-			))}
+			{completedProjects.length > 0 ? (
+				completedProjects.map(project => (
+					<ProjectCard
+						title={project.title}
+						description={project.description}
+						detailLink={`/projects/${project.id}`}
+						githubUrl={project.github_url}
+						tags={project.stack || []}
+					/>
+				))
+			) : (
+				<p class="text-gray-500 dark:text-gray-400 text-center py-12 col-span-3">
+					{projectsError
+						? `에러: ${projectsError} (API_URL: ${API_URL || '미설정'})`
+						: '완료된 프로젝트가 없습니다.'}
+				</p>
+			)}
 		</div>
 	</section>
 

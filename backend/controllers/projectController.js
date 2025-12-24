@@ -41,13 +41,13 @@ export const getProject = async (req, res) => {
 // POST /api/projects - Create new project
 export const addProject = async (req, res) => {
   try {
-    const { title, description, stack, github_url } = req.body;
+    const { title, description, content, stack, github_url } = req.body;
 
     if (!title || !description || !stack || !github_url) {
       return res.status(400).json({ error: 'Title, description, stack, and github_url are required' });
     }
 
-    const newProject = await createProject({ title, description, stack, github_url });
+    const newProject = await createProject({ title, description, content, stack, github_url });
     res.status(201).json(newProject);
   } catch (error) {
     console.error('Error creating project:', error);
@@ -72,8 +72,8 @@ export const updateProject = async (req, res) => {
       return res.status(404).json({ error: 'Project not found' });
     }
 
-    const { title, description, stack, github_url } = req.body;
-    const updatedProject = await updateProjectService(id, { title, description, stack, github_url });
+    const { title, description, content, stack, github_url } = req.body;
+    const updatedProject = await updateProjectService(id, { title, description, content, stack, github_url });
 
     res.json(updatedProject);
   } catch (error) {

@@ -1,0 +1,194 @@
+# 설치 가이드
+
+## 필요한 패키지 설치
+
+### Backend
+
+```bash
+cd backend
+npm install express-session
+```
+
+### 환경 변수 설정
+
+`.env` 파일에 다음 변수 추가:
+
+```bash
+# Session secret (production에서는 반드시 변경!)
+SESSION_SECRET=your-random-secret-key-here
+
+# Admin password
+ADMIN_PASSWORD=your-secure-password-here
+
+# Frontend URL (CORS)
+FRONTEND_URL=http://localhost:4321
+```
+
+**보안 참고사항:**
+- `SESSION_SECRET`: 랜덤한 긴 문자열로 설정 (최소 32자 이상 권장)
+- `ADMIN_PASSWORD`: 강력한 비밀번호 사용 (production 환경에서는 bcrypt 사용 권장)
+
+### DB 마이그레이션
+
+```bash
+psql -U postgres -d my_blog < backend/db/add-kanban-to-projects.sql
+```
+
+## 개발 서버 실행
+
+```bash
+# Backend
+cd backend
+npm start
+
+# Frontend
+cd frontend
+npm run dev
+```
+
+## Production 배포
+
+### PM2 재시작
+
+```bash
+cd backend
+pm2 restart ecosystem.config.cjs
+```
+
+### 로그인 페이지 접근 방법
+
+#### 1. 서버 내부에서
+```
+http://localhost:4321/admin/login
+```
+- 자동 인증되어 로그인 페이지 접근 불필요
+
+#### 2. 내부 네트워크에서
+```
+http://localhost:4321/admin/login
+```
+- 브라우저에서 위 URL 접속
+- 관리자 비밀번호 입력 (backend/.env의 ADMIN_PASSWORD)
+- 로그인 후 7일간 세션 유지
+
+#### 3. 외부 네트워크에서 (도메인)
+```
+https://chanwook.kr/admin/login
+```
+- 브라우저에서 위 URL 접속
+- 관리자 비밀번호 입력
+- 로그인 후 7일간 세션 유지
+
+**로그인 후 동작**:
+- 원래 보려던 페이지로 자동 이동 (redirect 파라미터)
+- 관리자 버튼들이 자동으로 표시됨
+- 7일 동안 재로그인 불필요
+
+## 인증 시스템 개요
+
+- **관리자 전용 기능**: 글/프로젝트 추가, 수정, 삭제
+- **공개 기능**: 모든 콘텐츠 조회
+- **세션 기반 인증**: 7일간 유지
+- **로그인 페이지**: `/admin/login`
+
+### 자동 인증 (Auto-authentication)
+
+**localhost에서만 자동 관리자 인증**:
+- 서버에 직접 접속 시 (`http://localhost:4321`)
+- 로그인 없이 자동으로 관리자 권한 부여
+
+**외부/원격 접속 시**:
+- 로그인 필요 (한 번 로그인 시 7일간 세션 유지)
+- 브라우저를 닫아도 로그인 상태 유지됨
+
+## 네트워크 접속 시나리오
+
+### 1. 서버 내부에서 접속 (자동 인증)
+```
+http://localhost:4321
+```
+- ✅ 자동 관리자 인증
+- 로그인 불필요
+
+### 2. 같은 네트워크 내에서 접속 (로그인 필요)
+```
+http://localhost:4321
+```
+- 🔐 첫 접속 시 로그인 필요 (`/admin/login`)
+- 이후 7일간 세션 유지
+
+### 3. 외부 네트워크에서 접속 (프로덕션 도메인)
+```
+https://chanwook.kr
+```
+- 🔐 첫 접속 시 로그인 필요 (`/admin/login`)
+- 이후 7일간 세션 유지
+- **권장**: 외부에서는 항상 도메인 사용 (HTTPS)
+- nginx 리버스 프록시를 통해 안전하게 접속
+
+### 세션 쿠키 주의사항
+
+접속 방법에 따라 별도의 세션이 생성됩니다:
+- `http://localhost:4321`로 로그인 → 이 도메인에서만 유효
+- `https://chanwook.kr`로 로그인 → 이 도메인에서만 유효
+
+**권장 사용 패턴**:
+- **로컬/내부**: `http://localhost:4321` 사용
+- **외부 네트워크**: `https://chanwook.kr` 사용
+- 한 가지 접속 방법으로 통일하면 로그인 횟수 최소화
+
+## 추가 신뢰 IP 설정 (선택사항)
+
+특정 IP를 신뢰하고 자동 인증하려면:
+
+```bash
+# backend/.env
+TRUSTED_IPS=your-static-ip-1,your-static-ip-2
+```
+
+## nginx 리버스 프록시 설정
+
+외부 접속을 위한 nginx 설정 예시:
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name chanwook.kr www.chanwook.kr;
+
+    # SSL 인증서 설정 (Let's Encrypt 등)
+    ssl_certificate /path/to/cert.pem;
+    ssl_certificate_key /path/to/key.pem;
+
+    # Frontend proxy
+    location / {
+        proxy_pass http://localhost:4321;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+
+    # Backend API proxy
+    location /api {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # 세션 쿠키를 위한 추가 설정
+        proxy_set_header Cookie $http_cookie;
+        proxy_pass_header Set-Cookie;
+    }
+}
+```
+
+**중요 헤더**:
+- `X-Real-IP`: 실제 클라이언트 IP (인증 시스템에서 사용)
+- `X-Forwarded-Proto`: HTTPS 여부 (세션 쿠키 secure 플래그)
+- `Cookie` & `Set-Cookie`: 세션 유지에 필수

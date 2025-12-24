@@ -5,11 +5,11 @@
   "main": "app.js",
   "scripts": {
     "start": "node app.js",
-    "dev": "nodemon app.js",
-    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
-    "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch",
-    "lint": "eslint .",
-    "lint:fix": "eslint . --fix",
+    "dev": "nodemon --config ./config/nodemon.json app.js",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config ./config/jest.config.js",
+    "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch --config ./config/jest.config.js",
+    "lint": "eslint . --config ./config/eslint.config.js",
+    "lint:fix": "eslint . --fix --config ./config/eslint.config.js",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
@@ -21,6 +21,7 @@
     "cors": "2.8.5",
     "dotenv": "16.4.7",
     "express": "5.2.1",
+    "express-session": "1.18.1",
     "pg": "8.13.1"
   },
   "devDependencies": {

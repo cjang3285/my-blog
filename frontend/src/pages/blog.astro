@@ -8,7 +8,7 @@ const pageTitle = 'Posts - CS {["장찬욱"]};';
 	<div class="max-w-3xl">
 		<div class="flex justify-between items-center mb-4">
 			<h1 class="text-4xl font-bold">Posts</h1>
-			<button id="add-post-btn" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded font-medium">
+			<button id="add-post-btn" style="display: none;" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded font-medium">
 				+ 새 글 작성
 			</button>
 		</div>
@@ -90,16 +90,49 @@ const pageTitle = 'Posts - CS {["장찬욱"]};';
 </Layout>
 
 <script>
-	const API_URL = '';
+	const API_URL = import.meta.env.PUBLIC_API_URL || '';
 	let editingPostId: string | null = null;
+	let isAuthenticated = false;
+
+	// Check authentication status
+	async function checkAuth() {
+		try {
+			const response = await fetch(`${API_URL}/api/auth/check`, {
+				credentials: 'include'
+			});
+			const data = await response.json();
+			isAuthenticated = data.isAuthenticated;
+
+			// Show/hide add button
+			const addBtn = document.getElementById('add-post-btn');
+			if (addBtn) {
+				addBtn.style.display = isAuthenticated ? 'block' : 'none';
+			}
+		} catch (error) {
+			console.error('Auth check failed:', error);
+			isAuthenticated = false;
+		}
+	}
 
 	async function loadPosts() {
 		try {
+			console.log('[BLOG] API_URL:', API_URL);
+			console.log('[BLOG] Fetching posts from:', `${API_URL}/api/posts`);
 			const response = await fetch(`${API_URL}/api/posts`);
+			console.log('[BLOG] Response status:', response.status);
+
+			if (!response.ok) {
+				throw new Error(`HTTP ${response.status}`);
+			}
+
 			const posts = await response.json();
+			console.log('[BLOG] Loaded posts:', posts.length);
 
 			const container = document.getElementById('posts-container');
-			if (!container) return;
+			if (!container) {
+				console.error('[BLOG] Container not found');
+				return;
+			}
 
 			if (posts.length === 0) {
 				container.innerHTML = `
@@ -112,7 +145,7 @@ const pageTitle = 'Posts - CS {["장찬욱"]};';
 			}
 
 			container.innerHTML = posts.map(post => `
-				<article class="group p-6 rounded-xl border border-gray-800 transition-colors">
+				<article class="group p-6 rounded-xl border border-gray-800 hover:border-gray-700 transition-colors">
 					<div class="flex items-center gap-2 text-sm text-gray-400 mb-3">
 						<time>${new Date(post.date).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}</time>
 						${post.tags && post.tags.length > 0 ? `
@@ -126,62 +159,21 @@ const pageTitle = 'Posts - CS {["장찬욱"]};';
 					<h3 class="text-2xl font-semibold mb-2">
 						<a href="/blog/${post.slug}" class="hover:text-blue-400 transition-colors">${post.title}</a>
 					</h3>
-					<p class="text-gray-400 mb-4">${post.excerpt}</p>
-					<div class="flex gap-2 justify-end">
-						<button class="edit-post px-3 py-1 bg-yellow-600 hover:bg-yellow-700 rounded text-sm"
-								data-id="${post.id}"
-								data-title="${encodeURIComponent(post.title)}"
-								data-excerpt="${encodeURIComponent(post.excerpt || '')}"
-								data-content="${encodeURIComponent(post.content || '')}"
-								data-tags="${post.tags ? post.tags.join(',') : ''}"
-								data-featured="${post.featured}">
-							수정
-						</button>
-						<button class="delete-post px-3 py-1 bg-red-600 hover:bg-red-700 rounded text-sm" data-id="${post.id}">
-							삭제
-						</button>
-					</div>
+					<p class="text-gray-400">${post.excerpt}</p>
 				</article>
 			`).join('');
-
-			// Add edit event listeners
-			document.querySelectorAll('.edit-post').forEach(btn => {
-				btn.addEventListener('click', (e) => {
-					const target = e.target as HTMLElement;
-					openEditModal(
-						target.dataset.id!,
-						decodeURIComponent(target.dataset.title || ''),
-						decodeURIComponent(target.dataset.excerpt || ''),
-						decodeURIComponent(target.dataset.content || ''),
-						target.dataset.tags || '',
-						target.dataset.featured === 'true'
-					);
-				});
-			});
-
-			// Add delete event listeners
-			document.querySelectorAll('.delete-post').forEach(btn => {
-				btn.addEventListener('click', async (e) => {
-					const id = (e.target as HTMLElement).dataset.id;
-					if (confirm('정말 삭제하시겠습니까?')) {
-						await deletePost(id!);
-					}
-				});
-			});
 		} catch (error) {
-			console.error('Failed to load posts:', error);
-		}
-	}
-
-	async function deletePost(id: string) {
-		try {
-			await fetch(`${API_URL}/api/posts/${id}`, {
-				method: 'DELETE'
-			});
-			await loadPosts();
-		} catch (error) {
-			console.error('Failed to delete post:', error);
-			alert('삭제에 실패했습니다.');
+			console.error('[BLOG] Failed to load posts:', error);
+			const container = document.getElementById('posts-container');
+			if (container) {
+				container.innerHTML = `
+					<div class="text-center py-20">
+						<p class="text-red-400 text-lg mb-4">글을 불러오는데 실패했습니다.</p>
+						<p class="text-gray-500 text-sm">에러: ${error.message}</p>
+						<p class="text-gray-500 text-sm">API URL: ${API_URL || '미설정'}</p>
+					</div>
+				`;
+			}
 		}
 	}
 
@@ -208,20 +200,6 @@ const pageTitle = 'Posts - CS {["장찬욱"]};';
 		(document.getElementById('post-tags') as HTMLInputElement).value = '';
 		(document.getElementById('post-featured') as HTMLInputElement).checked = false;
 		(document.getElementById('post-id') as HTMLInputElement).value = '';
-
-		modal?.classList.remove('hidden');
-	}
-
-	function openEditModal(id: string, title: string, excerpt: string, content: string, tags: string, featured: boolean) {
-		editingPostId = id;
-		if (modalTitle) modalTitle.textContent = '글 수정';
-
-		(document.getElementById('post-title') as HTMLInputElement).value = title;
-		(document.getElementById('post-excerpt') as HTMLTextAreaElement).value = excerpt;
-		(document.getElementById('post-content') as HTMLTextAreaElement).value = content;
-		(document.getElementById('post-tags') as HTMLInputElement).value = tags;
-		(document.getElementById('post-featured') as HTMLInputElement).checked = featured;
-		(document.getElementById('post-id') as HTMLInputElement).value = id;
 
 		modal?.classList.remove('hidden');
 	}
@@ -268,5 +246,8 @@ const pageTitle = 'Posts - CS {["장찬욱"]};';
 	});
 
 	// Load initial data
-	loadPosts();
+	(async () => {
+		await checkAuth();
+		await loadPosts();
+	})();
 </script>

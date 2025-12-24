@@ -3,23 +3,109 @@ export const prerender = false;
 import Layout from '../../layouts/Layout.astro';
 
 const { slug } = Astro.params;
+const API_URL = import.meta.env.PUBLIC_API_URL || '';
 ---
 
 <Layout title="Blog Post" description="블로그 글 읽기">
-  <div id="post-content" class="max-w-3xl mx-auto">
+  <div id="post-container" class="max-w-3xl mx-auto">
     <!-- Loading state -->
     <div id="loading" class="text-center py-20">
       <p class="text-gray-400">로딩 중...</p>
     </div>
   </div>
+
+  <!-- Edit Post Modal -->
+  <div id="post-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 overflow-y-auto">
+    <div class="bg-gray-800 p-6 rounded-lg w-full max-w-2xl m-4">
+      <h3 id="modal-title" class="text-2xl font-semibold mb-4">글 수정</h3>
+      <form id="post-form">
+        <input type="hidden" id="post-id" />
+        <div class="mb-4">
+          <label class="block text-gray-300 mb-2">제목 *</label>
+          <input
+            type="text"
+            id="post-title"
+            required
+            class="w-full px-4 py-2 bg-gray-700 text-gray-100 rounded border border-gray-600 focus:border-blue-400 outline-none"
+          />
+        </div>
+        <div class="mb-4">
+          <label class="block text-gray-300 mb-2">요약 *</label>
+          <textarea
+            id="post-excerpt"
+            required
+            rows="2"
+            class="w-full px-4 py-2 bg-gray-700 text-gray-100 rounded border border-gray-600 focus:border-blue-400 outline-none"
+          ></textarea>
+        </div>
+        <div class="mb-4">
+          <label class="block text-gray-300 mb-2">본문 *</label>
+          <textarea
+            id="post-content"
+            required
+            rows="8"
+            class="w-full px-4 py-2 bg-gray-700 text-gray-100 rounded border border-gray-600 focus:border-blue-400 outline-none"
+          ></textarea>
+        </div>
+        <div class="mb-4">
+          <label class="block text-gray-300 mb-2">태그 (쉼표로 구분)</label>
+          <input
+            type="text"
+            id="post-tags"
+            placeholder="예: JavaScript, React, Web"
+            class="w-full px-4 py-2 bg-gray-700 text-gray-100 rounded border border-gray-600 focus:border-blue-400 outline-none"
+          />
+        </div>
+        <div class="mb-4">
+          <label class="flex items-center text-gray-300">
+            <input type="checkbox" id="post-featured" class="mr-2" />
+            Featured (메인 페이지에 표시)
+          </label>
+        </div>
+        <div class="flex gap-2 justify-end">
+          <button
+            type="button"
+            id="cancel-btn"
+            class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded"
+          >
+            취소
+          </button>
+          <button
+            type="submit"
+            class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded"
+          >
+            저장
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
 </Layout>
 
-<script define:vars={{ slug }}>
-  const API_URL = '';
+<script define:vars={{ slug, API_URL }}>
+  let currentPost = null;
+  let isAuthenticated = false;
+
+  // Check authentication status
+  async function checkAuth() {
+    try {
+      const response = await fetch(`${API_URL}/api/auth/check`, {
+        credentials: 'include'
+      });
+      const data = await response.json();
+      isAuthenticated = data.isAuthenticated;
+    } catch (error) {
+      console.error('Auth check failed:', error);
+      isAuthenticated = false;
+    }
+  }
 
   async function loadPost() {
     const loading = document.getElementById('loading');
-    const container = document.getElementById('post-content');
+    const container = document.getElementById('post-container');
+
+    // Check auth first
+    await checkAuth();
 
     try {
       const response = await fetch(`${API_URL}/api/posts/${slug}`);
@@ -39,6 +125,7 @@ const { slug } = Astro.params;
       }
 
       const post = await response.json();
+      currentPost = post;
 
       // Hide loading
       if (loading) loading.remove();
@@ -49,7 +136,7 @@ const { slug } = Astro.params;
           <div class="mb-8">
             <a href="/blog" class="text-blue-400 hover:underline mb-4 block">&larr; 모든 글 목록으로 돌아가기</a>
             <h1 class="text-4xl font-bold mb-2">${post.title}</h1>
-            <div class="flex items-center gap-2 text-sm text-gray-400">
+            <div class="flex items-center gap-2 text-sm text-gray-400 mb-4">
               <time>${new Date(post.date).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}</time>
               ${post.tags && post.tags.length > 0 ? `
                 <span>•</span>
@@ -58,6 +145,16 @@ const { slug } = Astro.params;
                 </div>
               ` : ''}
             </div>
+            ${isAuthenticated ? `
+              <div class="flex gap-2">
+                <button id="edit-btn" class="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 rounded text-sm font-medium">
+                  수정
+                </button>
+                <button id="delete-btn" class="px-4 py-2 bg-red-600 hover:bg-red-700 rounded text-sm font-medium">
+                  삭제
+                </button>
+              </div>
+            ` : ''}
           </div>
           <div class="text-gray-300 text-lg leading-relaxed">
             <p class="text-xl italic text-gray-400 mb-8">${post.excerpt}</p>
@@ -69,6 +166,12 @@ const { slug } = Astro.params;
 
       // Update page title
       document.title = `${post.title} - CS {["장찬욱"]};`;
+
+      // Add event listeners for edit and delete buttons (only if authenticated)
+      if (isAuthenticated) {
+        document.getElementById('edit-btn')?.addEventListener('click', openEditModal);
+        document.getElementById('delete-btn')?.addEventListener('click', handleDelete);
+      }
     } catch (error) {
       console.error('Error loading post:', error);
       container.innerHTML = `
@@ -80,6 +183,83 @@ const { slug } = Astro.params;
       `;
     }
   }
+
+  // Modal functions
+  const modal = document.getElementById('post-modal');
+  const form = document.getElementById('post-form');
+  const cancelBtn = document.getElementById('cancel-btn');
+
+  function openEditModal() {
+    if (!currentPost) return;
+
+    (document.getElementById('post-id')).value = currentPost.id;
+    (document.getElementById('post-title')).value = currentPost.title;
+    (document.getElementById('post-excerpt')).value = currentPost.excerpt || '';
+    (document.getElementById('post-content')).value = currentPost.content || '';
+    (document.getElementById('post-tags')).value = currentPost.tags ? currentPost.tags.join(', ') : '';
+    (document.getElementById('post-featured')).checked = currentPost.featured || false;
+
+    modal?.classList.remove('hidden');
+  }
+
+  function closeModal() {
+    modal?.classList.add('hidden');
+  }
+
+  async function handleDelete() {
+    if (!currentPost) return;
+
+    if (!confirm('정말 이 글을 삭제하시겠습니까?')) return;
+
+    try {
+      const response = await fetch(`${API_URL}/api/posts/${currentPost.id}`, {
+        method: 'DELETE'
+      });
+
+      if (response.ok) {
+        alert('글이 삭제되었습니다.');
+        window.location.href = '/blog';
+      } else {
+        throw new Error('Failed to delete post');
+      }
+    } catch (error) {
+      console.error('Failed to delete post:', error);
+      alert('삭제에 실패했습니다.');
+    }
+  }
+
+  cancelBtn?.addEventListener('click', closeModal);
+
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const id = (document.getElementById('post-id')).value;
+    const title = (document.getElementById('post-title')).value;
+    const excerpt = (document.getElementById('post-excerpt')).value;
+    const content = (document.getElementById('post-content')).value;
+    const tagsInput = (document.getElementById('post-tags')).value;
+    const featured = (document.getElementById('post-featured')).checked;
+
+    const tags = tagsInput ? tagsInput.split(',').map(t => t.trim()).filter(t => t) : [];
+
+    try {
+      const response = await fetch(`${API_URL}/api/posts/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, excerpt, content, tags, featured })
+      });
+
+      if (response.ok) {
+        closeModal();
+        await loadPost(); // Reload post to show updates
+      } else {
+        throw new Error('Failed to update post');
+      }
+    } catch (error) {
+      console.error('Failed to save post:', error);
+      alert('저장에 실패했습니다.');
+    }
+  });
 
   // Load post on page load
   loadPost();

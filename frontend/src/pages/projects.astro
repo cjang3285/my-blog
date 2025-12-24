@@ -8,7 +8,7 @@ const pageTitle = 'Projects - CS {["장찬욱"]};';
 	<div>
 		<div class="flex justify-between items-center mb-4">
 			<h1 class="text-4xl font-bold">Projects</h1>
-			<button id="add-project-btn" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded font-medium">
+			<button id="add-project-btn" style="display: none;" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded font-medium">
 				+ 새 프로젝트 추가
 			</button>
 		</div>
@@ -16,8 +16,49 @@ const pageTitle = 'Projects - CS {["장찬욱"]};';
 			학습하며 만든 프로젝트들입니다.
 		</p>
 
-		<div id="projects-container" class="grid md:grid-cols-2 gap-6">
+		<div id="projects-container" class="grid md:grid-cols-2 gap-6 mb-16">
 			<!-- Projects will be loaded here -->
+		</div>
+
+		<!-- Kanban Board Section -->
+		<div class="mt-16 pt-16 border-t border-gray-800">
+			<h2 class="text-3xl font-bold mb-8">프로젝트 칸반보드</h2>
+			<p class="text-gray-400 mb-8">프로젝트 진행 상황을 관리합니다. 카드를 드래그하여 상태를 변경할 수 있습니다.</p>
+
+			<div id="kanban-board" class="grid md:grid-cols-3 gap-6">
+				<!-- TODO Column -->
+				<div class="kanban-column" data-column="todo">
+					<div class="flex justify-between items-center mb-4">
+						<h3 class="text-xl font-semibold text-gray-300">📋 Todo</h3>
+						<span id="todo-count" class="text-sm text-gray-500">0</span>
+					</div>
+					<div class="kanban-cards space-y-3 min-h-[400px] p-4 bg-gray-900 rounded-lg" data-column="todo">
+						<!-- Cards will be inserted here -->
+					</div>
+				</div>
+
+				<!-- In Progress Column -->
+				<div class="kanban-column" data-column="inprogress">
+					<div class="flex justify-between items-center mb-4">
+						<h3 class="text-xl font-semibold text-gray-300">🚧 In Progress</h3>
+						<span id="inprogress-count" class="text-sm text-gray-500">0</span>
+					</div>
+					<div class="kanban-cards space-y-3 min-h-[400px] p-4 bg-gray-900 rounded-lg" data-column="inprogress">
+						<!-- Cards will be inserted here -->
+					</div>
+				</div>
+
+				<!-- Done Column -->
+				<div class="kanban-column" data-column="done">
+					<div class="flex justify-between items-center mb-4">
+						<h3 class="text-xl font-semibold text-gray-300">✅ Done</h3>
+						<span id="done-count" class="text-sm text-gray-500">0</span>
+					</div>
+					<div class="kanban-cards space-y-3 min-h-[400px] p-4 bg-gray-900 rounded-lg" data-column="done">
+						<!-- Cards will be inserted here -->
+					</div>
+				</div>
+			</div>
 		</div>
 	</div>
 
@@ -37,11 +78,21 @@ const pageTitle = 'Projects - CS {["장찬욱"]};';
 					/>
 				</div>
 				<div class="mb-4">
-					<label class="block text-gray-300 mb-2">간단한 소개 *</label>
+					<label class="block text-gray-300 mb-2">간단한 소개 * (리스트/칸반에 표시)</label>
 					<textarea
 						id="project-description"
 						required
-						rows="3"
+						rows="2"
+						placeholder="프로젝트의 핵심 내용을 간단히 요약해주세요"
+						class="w-full px-4 py-2 bg-gray-700 text-gray-100 rounded border border-gray-600 focus:border-blue-400 outline-none"
+					></textarea>
+				</div>
+				<div class="mb-4">
+					<label class="block text-gray-300 mb-2">상세 본문 (상세 페이지에 표시)</label>
+					<textarea
+						id="project-content"
+						rows="6"
+						placeholder="프로젝트의 목적, 구현 내용, 배운 점 등을 자세히 작성해주세요"
 						class="w-full px-4 py-2 bg-gray-700 text-gray-100 rounded border border-gray-600 focus:border-blue-400 outline-none"
 					></textarea>
 				</div>
@@ -86,16 +137,49 @@ const pageTitle = 'Projects - CS {["장찬욱"]};';
 </Layout>
 
 <script>
-	const API_URL = '';
+	const API_URL = import.meta.env.PUBLIC_API_URL || '';
 	let editingProjectId: string | null = null;
+	let isAuthenticated = false;
+
+	// Check authentication status
+	async function checkAuth() {
+		try {
+			const response = await fetch(`${API_URL}/api/auth/check`, {
+				credentials: 'include'
+			});
+			const data = await response.json();
+			isAuthenticated = data.isAuthenticated;
+
+			// Show/hide add button
+			const addBtn = document.getElementById('add-project-btn');
+			if (addBtn) {
+				addBtn.style.display = isAuthenticated ? 'block' : 'none';
+			}
+		} catch (error) {
+			console.error('Auth check failed:', error);
+			isAuthenticated = false;
+		}
+	}
 
 	async function loadProjects() {
 		try {
+			console.log('[PROJECTS] API_URL:', API_URL);
+			console.log('[PROJECTS] Fetching projects from:', `${API_URL}/api/projects`);
 			const response = await fetch(`${API_URL}/api/projects`);
+			console.log('[PROJECTS] Response status:', response.status);
+
+			if (!response.ok) {
+				throw new Error(`HTTP ${response.status}`);
+			}
+
 			const projects = await response.json();
+			console.log('[PROJECTS] Loaded projects:', projects.length);
 
 			const container = document.getElementById('projects-container');
-			if (!container) return;
+			if (!container) {
+				console.error('[PROJECTS] Container not found');
+				return;
+			}
 
 			if (projects.length === 0) {
 				container.innerHTML = `
@@ -136,60 +220,21 @@ const pageTitle = 'Projects - CS {["장찬욱"]};';
 								</svg>
 							</a>
 						` : ''}
-						<div class="flex gap-2 ml-auto">
-              <button class="edit-project px-3 py-1 bg-yellow-600 hover:bg-yellow-700 rounded text-sm" 
-                  data-id="${project.id}"
-                  data-title="${encodeURIComponent(project.title)}"
-                  data-description="${encodeURIComponent(project.description)}"
-                  data-stack="${project.stack.join(',')}"
-                  data-github_url="${project.github_url}">
-                수정
-              </button>
-							<button class="delete-project px-3 py-1 bg-red-600 hover:bg-red-700 rounded text-sm" data-id="${project.id}">
-								삭제
-							</button>
-            </div>
 					</div>
 				</article>
 			`).join('');
-
-			// Add edit event listeners
-			document.querySelectorAll('.edit-project').forEach(btn => {
-				btn.addEventListener('click', (e) => {
-					const target = e.target as HTMLElement;
-					openEditModal(
-						target.dataset.id!,
-						decodeURIComponent(target.dataset.title || ''),
-						decodeURIComponent(target.dataset.description || ''),
-						target.dataset.stack || '',
-						target.dataset.github_url || ''
-					);
-				});
-			});
-
-			// Add delete event listeners
-			document.querySelectorAll('.delete-project').forEach(btn => {
-				btn.addEventListener('click', async (e) => {
-					const id = (e.target as HTMLElement).dataset.id;
-					if (confirm('정말 삭제하시겠습니까?')) {
-						await deleteProject(id!);
-					}
-				});
-			});
 		} catch (error) {
-			console.error('Failed to load projects:', error);
-		}
-	}
-
-	async function deleteProject(id: string) {
-		try {
-			await fetch(`${API_URL}/api/projects/${id}`, {
-				method: 'DELETE'
-			});
-			await loadProjects();
-		} catch (error) {
-			console.error('Failed to delete project:', error);
-			alert('삭제에 실패했습니다.');
+			console.error('[PROJECTS] Failed to load projects:', error);
+			const container = document.getElementById('projects-container');
+			if (container) {
+				container.innerHTML = `
+					<div class="col-span-2 text-center py-20">
+						<p class="text-red-400 text-lg mb-4">프로젝트를 불러오는데 실패했습니다.</p>
+						<p class="text-gray-500 text-sm">에러: ${error.message}</p>
+						<p class="text-gray-500 text-sm">API URL: ${API_URL || '미설정'}</p>
+					</div>
+				`;
+			}
 		}
 	}
 
@@ -211,19 +256,6 @@ const pageTitle = 'Projects - CS {["장찬욱"]};';
 		modal?.classList.remove('hidden');
 	}
 
-  function openEditModal(id: string, title: string, description: string, stack: string, github_url: string) {
-		editingProjectId = id;
-		if (modalTitle) modalTitle.textContent = '프로젝트 수정';
-
-		(document.getElementById('project-title') as HTMLInputElement).value = title;
-		(document.getElementById('project-description') as HTMLTextAreaElement).value = description;
-		(document.getElementById('project-stack') as HTMLInputElement).value = stack;
-		(document.getElementById('project-github_url') as HTMLInputElement).value = github_url;
-		(document.getElementById('project-id') as HTMLInputElement).value = id;
-
-		modal?.classList.remove('hidden');
-	}
-
 	function closeModal() {
 		modal?.classList.add('hidden');
 		editingProjectId = null;
@@ -234,29 +266,21 @@ const pageTitle = 'Projects - CS {["장찬욱"]};';
 
 		const title = (document.getElementById('project-title') as HTMLInputElement).value;
 		const description = (document.getElementById('project-description') as HTMLTextAreaElement).value;
+		const content = (document.getElementById('project-content') as HTMLTextAreaElement).value;
 		const stackInput = (document.getElementById('project-stack') as HTMLInputElement).value;
     const github_url = (document.getElementById('project-github_url') as HTMLInputElement).value;
 
 		const stack = stackInput ? stackInput.split(',').map(t => t.trim()).filter(t => t) : [];
-    const projectData = { title, description, stack, github_url };
+    const projectData = { title, description, content, stack, github_url };
 
 		try {
-      let response;
-			if (editingProjectId) {
-				// UPDATE existing project
-				response = await fetch(`${API_URL}/api/projects/${editingProjectId}`, {
-					method: 'PUT',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify(projectData)
-				});
-			} else {
-				// CREATE new project
-				response = await fetch(`${API_URL}/api/projects`, {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify(projectData)
-				});
-			}
+			// CREATE new project
+			const response = await fetch(`${API_URL}/api/projects`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(projectData),
+				credentials: 'include'
+			});
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -271,6 +295,144 @@ const pageTitle = 'Projects - CS {["장찬욱"]};';
 		}
 	});
 
+	// ============================================
+	// KANBAN BOARD FUNCTIONALITY
+	// ============================================
+
+	let draggedCard: HTMLElement | null = null;
+	let draggedCardId: number | null = null;
+	let draggedFromColumn: string | null = null;
+
+	async function loadKanban() {
+		try {
+			const response = await fetch(`${API_URL}/api/kanban`);
+			const data = await response.json();
+
+			renderColumn('todo', data.todo);
+			renderColumn('inprogress', data.inprogress);
+			renderColumn('done', data.done);
+		} catch (error) {
+			console.error('Failed to load kanban:', error);
+		}
+	}
+
+	function renderColumn(column: string, cards: any[]) {
+		const container = document.querySelector(`.kanban-cards[data-column="${column}"]`);
+		const countEl = document.getElementById(`${column}-count`);
+
+		if (!container) return;
+
+		if (countEl) countEl.textContent = cards.length.toString();
+
+		container.innerHTML = '';
+		cards.forEach(card => {
+			const cardEl = createCardElement(card, column);
+			container.appendChild(cardEl);
+		});
+	}
+
+	function createCardElement(card: any, column: string) {
+		const div = document.createElement('div');
+		div.className = 'kanban-card bg-gray-800 p-4 rounded-lg border border-gray-700 hover:border-blue-400 cursor-pointer transition-colors';
+		div.draggable = isAuthenticated; // Only draggable if authenticated
+		div.dataset.cardId = card.id.toString();
+		div.dataset.column = column;
+
+		div.innerHTML = `
+			<div class="mb-2">
+				<h4 class="font-semibold text-gray-100 mb-2">${card.title}</h4>
+				<p class="text-sm text-gray-400 mb-3">${card.description || ''}</p>
+				${card.stack && card.stack.length > 0 ? `
+					<div class="flex flex-wrap gap-1 mb-3">
+						${card.stack.map(tech => `<span class="px-2 py-0.5 text-xs bg-gray-900 rounded">${tech}</span>`).join('')}
+					</div>
+				` : ''}
+				${card.github_url ? `
+					<a href="${card.github_url}" target="_blank" rel="noopener noreferrer"
+					   class="inline-flex items-center gap-1 text-xs text-blue-400 hover:underline"
+					   onclick="event.stopPropagation();">
+						GitHub
+						<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+						</svg>
+					</a>
+				` : ''}
+			</div>
+		`;
+
+		// Click event - navigate to project detail page
+		div.addEventListener('click', () => {
+			window.location.href = `/projects/${card.id}`;
+		});
+
+		// Drag events (only if authenticated)
+		if (isAuthenticated) {
+			div.addEventListener('dragstart', handleDragStart);
+			div.addEventListener('dragend', handleDragEnd);
+		}
+
+		return div;
+	}
+
+	function handleDragStart(e: DragEvent) {
+		const target = e.target as HTMLElement;
+		draggedCard = target;
+		draggedCardId = parseInt(target.dataset.cardId || '0');
+		draggedFromColumn = target.dataset.column || null;
+		target.classList.add('opacity-50');
+	}
+
+	function handleDragEnd(e: DragEvent) {
+		const target = e.target as HTMLElement;
+		target.classList.remove('opacity-50');
+	}
+
+	function handleDragOver(e: DragEvent) {
+		e.preventDefault();
+	}
+
+	async function handleDrop(e: DragEvent, column: string) {
+		e.preventDefault();
+
+		if (!draggedCardId || !draggedFromColumn) return;
+
+		const container = e.currentTarget as HTMLElement;
+		const cards = Array.from(container.querySelectorAll('.kanban-card'));
+		const toIndex = cards.length;
+
+		try {
+			await fetch(`${API_URL}/api/kanban/move`, {
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				credentials: 'include',
+				body: JSON.stringify({
+					cardId: draggedCardId,
+					fromColumn: draggedFromColumn,
+					toColumn: column,
+					toIndex
+				})
+			});
+
+			await loadKanban();
+		} catch (error) {
+			console.error('Failed to move card:', error);
+			alert('카드 이동에 실패했습니다.');
+		}
+	}
+
+	// Set up drag and drop on columns
+	document.querySelectorAll('.kanban-cards').forEach(column => {
+		column.addEventListener('dragover', handleDragOver);
+		column.addEventListener('drop', (e) => {
+			const col = (e.currentTarget as HTMLElement).dataset.column!;
+			handleDrop(e as DragEvent, col);
+		});
+	});
+
 	// Load initial data
-	loadProjects();
+	(async () => {
+		await checkAuth();
+		await loadProjects();
+		await loadKanban();
+	})();
 </script>
