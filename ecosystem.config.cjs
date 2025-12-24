@@ -3,7 +3,7 @@ module.exports = {
     {
       name: 'blog-backend',
       script: './app.js',
-      cwd: '../backend',
+      cwd: './backend',
       exec_mode: 'fork',
       instances: 1,
       autorestart: true,
@@ -27,7 +27,7 @@ module.exports = {
     {
       name: 'blog-frontend',
       script: './dist/server/entry.mjs',
-      cwd: '../frontend',
+      cwd: './frontend',
       exec_mode: 'fork',
       instances: 1,
       autorestart: true,
