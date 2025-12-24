@@ -2,6 +2,7 @@
   "name": "my-frontend",
   "type": "module",
   "version": "0.0.1",
+  "license": "MIT",
   "scripts": {
     "dev": "astro dev --config ./config/astro.config.mjs",
     "build": "astro build --config ./config/astro.config.mjs",
