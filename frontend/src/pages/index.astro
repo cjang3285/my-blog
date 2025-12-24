@@ -6,8 +6,11 @@ import Hero from '../components/Hero.astro';
 import BlogCard from '../components/BlogCard.astro';
 import ProjectCard from '../components/ProjectCard.astro';
 
-const API_URL = import.meta.env.PUBLIC_API_URL || '';
-console.log('[INDEX] API_URL:', API_URL);
+// SSR에서는 localhost:3000 사용, 클라이언트에서는 상대 경로 사용
+const API_URL = import.meta.env.SSR
+  ? 'http://localhost:3000'
+  : (import.meta.env.PUBLIC_API_URL || '');
+console.log('[INDEX] SSR:', import.meta.env.SSR, 'API_URL:', API_URL);
 
 // Fetch latest blog posts (최신 글 3개)
 let featuredPosts = [];
