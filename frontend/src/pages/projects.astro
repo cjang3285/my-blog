@@ -163,11 +163,23 @@ const pageTitle = 'Projects - CS {["장찬욱"]};';
 
 	async function loadProjects() {
 		try {
+			console.log('[PROJECTS] API_URL:', API_URL);
+			console.log('[PROJECTS] Fetching projects from:', `${API_URL}/api/projects`);
 			const response = await fetch(`${API_URL}/api/projects`);
+			console.log('[PROJECTS] Response status:', response.status);
+
+			if (!response.ok) {
+				throw new Error(`HTTP ${response.status}`);
+			}
+
 			const projects = await response.json();
+			console.log('[PROJECTS] Loaded projects:', projects.length);
 
 			const container = document.getElementById('projects-container');
-			if (!container) return;
+			if (!container) {
+				console.error('[PROJECTS] Container not found');
+				return;
+			}
 
 			if (projects.length === 0) {
 				container.innerHTML = `
@@ -212,7 +224,17 @@ const pageTitle = 'Projects - CS {["장찬욱"]};';
 				</article>
 			`).join('');
 		} catch (error) {
-			console.error('Failed to load projects:', error);
+			console.error('[PROJECTS] Failed to load projects:', error);
+			const container = document.getElementById('projects-container');
+			if (container) {
+				container.innerHTML = `
+					<div class="col-span-2 text-center py-20">
+						<p class="text-red-400 text-lg mb-4">프로젝트를 불러오는데 실패했습니다.</p>
+						<p class="text-gray-500 text-sm">에러: ${error.message}</p>
+						<p class="text-gray-500 text-sm">API URL: ${API_URL || '미설정'}</p>
+					</div>
+				`;
+			}
 		}
 	}
 
