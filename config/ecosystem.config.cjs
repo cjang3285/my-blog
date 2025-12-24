@@ -3,6 +3,7 @@ module.exports = {
     {
       name: 'blog-backend',
       script: './app.js',
+      cwd: '../backend',
       exec_mode: 'fork',
       instances: 1,
       autorestart: true,
@@ -25,7 +26,7 @@ module.exports = {
     },
     {
       name: 'blog-frontend',
-      script: '../frontend/dist/server/entry.mjs',
+      script: './dist/server/entry.mjs',
       cwd: '../frontend',
       exec_mode: 'fork',
       instances: 1,
@@ -42,9 +43,9 @@ module.exports = {
         HOST: '0.0.0.0',
         PORT: 4321
       },
-      error_file: '../frontend/logs/err.log',
-      out_file: '../frontend/logs/out.log',
-      log_file: '../frontend/logs/combined.log',
+      error_file: './logs/err.log',
+      out_file: './logs/out.log',
+      log_file: './logs/combined.log',
       time: true,
       merge_logs: true,
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z'
