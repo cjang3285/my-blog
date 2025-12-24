@@ -6,7 +6,7 @@ import tailwindcss from '@tailwindcss/vite';
 
 // https://astro.build/config
 export default defineConfig({
-  envDir: '../config',
+  envDir: './config',
   adapter: node({
     mode: 'standalone'
   }),
