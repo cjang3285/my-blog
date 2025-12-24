@@ -4,7 +4,7 @@ export const prerender = false;
 import Layout from '../layouts/Layout.astro';
 
 // SSR에서는 백엔드 URL 필요
-const API_URL = import.meta.env.SSR ? 'http://localhost:3000' : '';
+const API_URL = import.meta.env.PUBLIC_API_URL || '';
 const res = await fetch(`${API_URL}/api/releases`);
 const releases: string[] = await res.json();
 ---
@@ -18,7 +18,7 @@ const releases: string[] = await res.json();
         {releases.map(file => (
           <li>
             <a
-              href={`/api/releases/download/${file}`}
+              href={`${API_URL}/api/releases/download/${file}`}
               class="text-blue-600 hover:underline"
             >
               {file}

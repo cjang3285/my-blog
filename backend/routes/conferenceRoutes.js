@@ -1,10 +1,10 @@
 import express from 'express';
-import { getConferences, addConference, deleteConference } from '../controllers/conferenceController.js';
+import { getConferencesController, addConferenceController, deleteConferenceController } from '../controllers/conferenceController.js';
 
 const router = express.Router();
 
-router.get('/', getConferences);
-router.post('/', addConference);
-router.delete('/:id', deleteConference);
+router.get('/', getConferencesController);
+router.post('/', addConferenceController);
+router.delete('/:id', deleteConferenceController);
 
 export default router;

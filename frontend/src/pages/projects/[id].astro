@@ -3,6 +3,7 @@ export const prerender = false;
 import Layout from '../../layouts/Layout.astro';
 
 const { id } = Astro.params;
+const API_URL = import.meta.env.PUBLIC_API_URL || '';
 ---
 
 <Layout title="Project Details" description="프로젝트 상세 정보">
@@ -86,8 +87,7 @@ const { id } = Astro.params;
   </div>
 </Layout>
 
-<script define:vars={{ id }}>
-  const API_URL = '';
+<script define:vars={{ id, API_URL }}>
   let currentProject = null;
   let isAuthenticated = false;
 

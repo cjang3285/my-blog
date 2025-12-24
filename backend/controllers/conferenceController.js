@@ -1,21 +1,33 @@
-import { loadConferences, saveConferences } from '../services/conferenceService.js';
+import { getConferences, addConference, deleteConference } from '../services/conferenceService.js';
 
-export const getConferences = (req, res) => {
-  res.json(loadConferences());
+export const getConferencesController = async (req, res) => {
+  try {
+    const conferences = await getConferences();
+    res.json(conferences);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to load conferences' });
+  }
 };
 
-export const addConference = (req, res) => {
-  const list = loadConferences();
-  const newItem = { id: Date.now(), ...req.body };
-  list.push(newItem);
-  saveConferences(list);
-  res.json(newItem);
+export const addConferenceController = async (req, res) => {
+  try {
+    const newConference = await addConference(req.body);
+    res.status(201).json(newConference);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to add conference' });
+  }
 };
 
-export const deleteConference = (req, res) => {
-  const id = Number(req.params.id);
-  let list = loadConferences();
-  list = list.filter(item => item.id !== id);
-  saveConferences(list);
-  res.json({ success: true });
+export const deleteConferenceController = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const deleted = await deleteConference(id);
+    if (deleted) {
+      res.json({ success: true, deleted });
+    } else {
+      res.status(404).json({ error: 'Conference not found' });
+    }
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete conference' });
+  }
 };

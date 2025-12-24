@@ -1,4 +1,4 @@
-import pool from '../config/db.js';
+import pool from '../../config/db.js';
 
 // Get all kanban cards grouped by status
 export const getKanban = async () => {

@@ -6,8 +6,7 @@ import Hero from '../components/Hero.astro';
 import BlogCard from '../components/BlogCard.astro';
 import ProjectCard from '../components/ProjectCard.astro';
 
-// SSR에서는 백엔드 URL 필요, 클라이언트에서는 상대 URL 사용
-const API_URL = import.meta.env.SSR ? 'http://localhost:3000' : '';
+const API_URL = import.meta.env.PUBLIC_API_URL || '';
 
 // Fetch latest blog posts (최신 글 3개)
 let featuredPosts = [];

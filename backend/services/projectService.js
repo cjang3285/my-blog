@@ -1,4 +1,4 @@
-import pool from '../config/db.js';
+import pool from '../../config/db.js';
 
 // Get all projects (ordered by created_at descending)
 export const getAllProjects = async () => {

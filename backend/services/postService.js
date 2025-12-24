@@ -1,4 +1,4 @@
-import pool from '../config/db.js';
+import pool from '../../config/db.js';
 
 // Get all posts (ordered by date descending)
 export const getAllPosts = async () => {
