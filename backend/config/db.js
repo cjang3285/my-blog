@@ -7,10 +7,11 @@ const pool = new Pool({
   database: process.env.DB_NAME || 'my_blog',
   user: process.env.DB_USER || 'postgres',
   password: process.env.DB_PASSWORD || 'postgres',
-  options: `-c search_path=${process.env.DB_SCHEMA || 'public'}`,
 });
 
-pool.on('connect', () => {
+pool.on('connect', (client) => {
+  const schema = process.env.DB_SCHEMA || 'public';
+  client.query(`SET search_path TO ${schema}`);
   console.log('Connected to PostgreSQL database');
 });
 
