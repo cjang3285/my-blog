@@ -9,7 +9,9 @@ const pool = new Pool({
   password: process.env.DB_PASSWORD || 'postgres',
 });
 
-pool.on('connect', () => {
+pool.on('connect', (client) => {
+  const schema = process.env.DB_SCHEMA || 'public';
+  client.query(`SET search_path TO ${schema}`);
   console.log('Connected to PostgreSQL database');
 });
 
