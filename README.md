@@ -1,39 +1,44 @@
 # My Blog
 
-개인 블로그 프로젝트입니다. Astro 프론트엔드와 Express.js 백엔드로 구성되어 있습니다.
+개인 블로그 프로젝트. Astro 프론트엔드와 Express.js 백엔드로 구성.
 
 ## 프로젝트 구조
 
 ```
 my-blog/
-├── frontend/          # Astro 프론트엔드
-├── backend/           # Express.js 백엔드 API
-├── nginx-blog.conf   # nginx 설정 파일
-└── blog-backend.service  # systemd 서비스 파일 (선택사항)
+├── frontend/              # Astro 프론트엔드
+├── backend/               # Express.js 백엔드 API
+├── deployment/            # 배포 설정 파일
+│   ├── nginx-blog.conf
+│   ├── blog-backend.service
+│   └── redeploy.sh
+├── ecosystem.config.cjs   # PM2 설정
+├── CLAUDE.MD              # AI 개발 가이드라인
+└── LICENSE
 ```
 
 ## 기술 스택
 
 ### Frontend
-- **Framework**: Astro
+- **Framework**: Astro (SSR)
 - **빌드 도구**: Vite
-- **스타일**: CSS/Tailwind (확인 필요)
+- **스타일**: Tailwind CSS
 
 ### Backend
-- **Runtime**: Node.js (ESM)
+- **Runtime**: Node.js 18+ (ESM)
 - **Framework**: Express.js 5.x
-- **Database**: PostgreSQL
+- **Database**: PostgreSQL 12+ (스키마: `blog`)
 - **Process Manager**: PM2
-- **Web Server**: nginx
+- **Web Server**: nginx (리버스 프록시)
 
-## 시작하기
+## 빠른 시작
 
 ### 사전 요구사항
 
 - Node.js 18+
 - PostgreSQL 12+
-- nginx
 - PM2 (프로덕션 배포용)
+- nginx (프로덕션 배포용)
 
 ### 개발 환경 설정
 
@@ -44,25 +49,63 @@ git clone <repository-url>
 cd my-blog
 ```
 
-#### 2. 백엔드 설정
+#### 2. 데이터베이스 설정
+
+```bash
+# PostgreSQL 접속
+sudo -u postgres psql
+
+# 데이터베이스 및 스키마 생성
+CREATE DATABASE my_blog;
+CREATE USER your_user WITH PASSWORD 'your_password';
+GRANT ALL PRIVILEGES ON DATABASE my_blog TO your_user;
+\c my_blog
+CREATE SCHEMA blog;
+ALTER SCHEMA blog OWNER TO your_user;
+\q
+```
+
+#### 3. 백엔드 설정
 
 ```bash
 cd backend
 npm install
 
 # 환경 변수 설정
-cp .env.example .env
-# .env 파일을 편집하여 데이터베이스 정보 입력
+cp config/.env.example config/.env
+# config/.env 파일 편집하여 데이터베이스 정보 입력
+```
 
+`backend/config/.env` 예시:
+```env
+NODE_ENV=development
+PORT=3000
+
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=my_blog
+DB_USER=your_user
+DB_PASSWORD=your_password
+DB_SCHEMA=blog
+
+SESSION_SECRET=your-random-secret-key
+ADMIN_PASSWORD=your-password
+FRONTEND_URL=http://localhost:4321
+```
+
+```bash
 # 개발 서버 실행
 npm run dev
 ```
 
-#### 3. 프론트엔드 설정
+#### 4. 프론트엔드 설정
 
 ```bash
 cd ../frontend
 npm install
+
+# 환경 변수 설정 (선택사항)
+cp .env.example .env
 
 # 개발 서버 실행
 npm run dev
@@ -70,254 +113,141 @@ npm run dev
 
 ## 프로덕션 배포
 
-### 1. 데이터베이스 설정
+### 1. PM2로 서버 시작
 
 ```bash
-# PostgreSQL 설치 및 시작
-sudo apt update
-sudo apt install postgresql postgresql-contrib
-sudo systemctl start postgresql
-sudo systemctl enable postgresql
-
-# 데이터베이스 생성
-sudo -u postgres psql
-```
-
-PostgreSQL 프롬프트에서:
-
-```sql
-CREATE DATABASE my_blog;
-CREATE USER your_user WITH PASSWORD 'your_password';
-GRANT ALL PRIVILEGES ON DATABASE my_blog TO your_user;
-\q
-```
-
-### 2. PM2 설치 및 설정
-
-```bash
-# PM2 글로벌 설치
-sudo npm install -g pm2
-
-# 백엔드 서버 시작
-cd /home/jcw/my-blog/backend
-cp .env.example .env
-# .env 파일 편집
-nano .env
-
-# PM2로 서버 시작
-pm2 start ecosystem.config.js --env production
-
-# PM2를 시스템 부팅 시 자동 시작하도록 설정
-pm2 startup
+# 프로젝트 루트에서
+pm2 start ecosystem.config.cjs --env production
 pm2 save
+pm2 startup  # 시스템 부팅 시 자동 시작
 ```
 
-### 3. nginx 설정
+### 2. nginx 설정
 
 ```bash
 # nginx 설치
 sudo apt install nginx
 
 # 설정 파일 복사
-sudo cp nginx-blog.conf /etc/nginx/sites-available/blog
+sudo cp deployment/nginx-blog.conf /etc/nginx/sites-available/blog
 sudo ln -s /etc/nginx/sites-available/blog /etc/nginx/sites-enabled/
 
-# 기본 설정 비활성화 (선택사항)
-sudo rm /etc/nginx/sites-enabled/default
-
-# 설정 테스트 및 nginx 재시작
+# 설정 테스트 및 재시작
 sudo nginx -t
 sudo systemctl restart nginx
 sudo systemctl enable nginx
 ```
 
-### 4. SSL 인증서 설정 (Let's Encrypt)
+### 3. SSL 인증서 (Let's Encrypt)
 
 ```bash
-# Certbot 설치
 sudo apt install certbot python3-certbot-nginx
-
-# SSL 인증서 발급
-sudo certbot --nginx -d chanwook.kr -d www.chanwook.kr
-
-# 자동 갱신 확인
+sudo certbot --nginx -d yourdomain.com -d www.yourdomain.com
 sudo certbot renew --dry-run
 ```
 
-### 5. 프론트엔드 빌드 및 배포
+## 배포 업데이트
+
+### 백엔드 업데이트
 
 ```bash
-cd /home/jcw/my-blog/frontend
-npm install
-npm run build
-
-# 빌드된 파일은 dist/ 디렉토리에 생성되며
-# nginx가 이를 정적 파일로 서빙합니다
-```
-
-## 빠른 배포 (업데이트)
-
-백엔드 업데이트 시:
-
-```bash
-cd /home/jcw/my-blog/backend
+cd backend
 ./deploy.sh
 ```
 
-프론트엔드 업데이트 시:
+### 프론트엔드 업데이트
 
 ```bash
-cd /home/jcw/my-blog/frontend
-git pull origin main
+cd frontend
+git pull
 npm install
 npm run build
-sudo systemctl reload nginx
+pm2 restart blog-frontend
 ```
 
-## 서버 관리
+## 관리 명령어
 
-### PM2 명령어
+### PM2
 
 ```bash
-# 상태 확인
-pm2 status
-
-# 로그 확인
-pm2 logs blog-backend
-
-# 서버 재시작
-pm2 restart blog-backend
-
-# 서버 중지
-pm2 stop blog-backend
-
-# 서버 시작
-pm2 start blog-backend
+pm2 status                    # 상태 확인
+pm2 logs blog-backend         # 로그 확인
+pm2 restart blog-backend      # 재시작
+pm2 monit                     # 실시간 모니터링
 ```
 
-### nginx 명령어
+### PostgreSQL
 
 ```bash
-# 설정 테스트
-sudo nginx -t
+sudo systemctl status postgresql
+sudo -u postgres psql -d my_blog
 
-# nginx 재시작
-sudo systemctl restart nginx
+# 백업
+pg_dump -U your_user -d my_blog -n blog > backup.sql
 
-# nginx 재로드 (무중단)
-sudo systemctl reload nginx
+# 복원
+psql -U your_user -d my_blog < backup.sql
+```
 
-# nginx 상태 확인
-sudo systemctl status nginx
+### nginx
 
-# 로그 확인
-sudo tail -f /var/log/nginx/blog_access.log
+```bash
+sudo nginx -t                 # 설정 테스트
+sudo systemctl reload nginx   # 무중단 재로드
+sudo systemctl restart nginx  # 재시작
 sudo tail -f /var/log/nginx/blog_error.log
 ```
 
-### PostgreSQL 명령어
+## 인증 시스템
 
-```bash
-# PostgreSQL 상태 확인
-sudo systemctl status postgresql
+### 자동 인증
+- localhost 접속 시 자동 관리자 인증
+- 신뢰 IP 추가: `TRUSTED_IPS` 환경변수 설정
 
-# PostgreSQL 접속
-sudo -u postgres psql
-
-# 데이터베이스 백업
-pg_dump -U your_user my_blog > backup.sql
-
-# 데이터베이스 복원
-psql -U your_user my_blog < backup.sql
-```
+### 수동 로그인
+- URL: `https://yourdomain.com/admin/login`
+- 세션 유지: 7일
 
 ## 아키텍처
 
 ```
-                    ┌─────────────┐
-                    │   브라우저   │
-                    └──────┬──────┘
-                           │ HTTPS (443)
-                    ┌──────▼──────┐
-                    │    nginx    │
-                    │  (SSL/TLS)  │
-                    └──┬───────┬──┘
-                       │       │
-        ┌──────────────┘       └──────────────┐
-        │ Static Files                        │ /api
-        │ (Astro dist/)                       │
-        │                              ┌──────▼──────┐
-        │                              │   Express   │
-        │                              │  (PM2: 3000)│
-        │                              └──────┬──────┘
-        │                                     │
-        │                              ┌──────▼──────┐
-        │                              │ PostgreSQL  │
-        │                              │   (5432)    │
-        │                              └─────────────┘
-        ▼
-   Frontend (Astro)
+브라우저
+   │ HTTPS (443)
+   ▼
+nginx (SSL/TLS, 리버스 프록시)
+   ├─▶ Frontend (Astro SSR, PM2:4321)
+   └─▶ Backend API (Express, PM2:3000)
+         └─▶ PostgreSQL (blog 스키마, 5432)
 ```
 
 ## 트러블슈팅
 
-### 포트 충돌
+### relation "posts" does not exist
+
+DB 스키마 설정 확인:
+```bash
+# config/.env에 DB_SCHEMA=blog 추가
+echo "DB_SCHEMA=blog" >> backend/config/.env
+pm2 restart blog-backend
+```
+
+### PM2 프로세스 확인
 
 ```bash
-# 3000번 포트 사용 중인 프로세스 확인
-sudo lsof -i :3000
-kill -9 <PID>
+pm2 logs blog-backend --err --lines 100
+pm2 describe blog-backend
 ```
 
 ### nginx 502 Bad Gateway
 
-1. 백엔드 서버가 실행 중인지 확인: `pm2 status`
-2. 포트 3000이 열려있는지 확인: `curl http://localhost:3000/api/health`
-3. nginx 에러 로그 확인: `sudo tail -f /var/log/nginx/blog_error.log`
+1. 백엔드 실행 확인: `pm2 status`
+2. 포트 확인: `curl http://localhost:3000/api/health`
+3. 로그 확인: `sudo tail -f /var/log/nginx/blog_error.log`
 
-### 데이터베이스 연결 오류
+## 개발 가이드
 
-1. PostgreSQL 실행 확인: `sudo systemctl status postgresql`
-2. .env 파일의 데이터베이스 설정 확인
-3. 방화벽 설정 확인
-
-## 환경 변수
-
-### Backend (.env)
-
-```env
-NODE_ENV=production
-PORT=3000
-
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=my_blog
-DB_USER=your_db_user
-DB_PASSWORD=your_db_password
-```
-
-## 개발
-
-### 브랜치 전략
-
-- `main`: 프로덕션 브랜치
-- `develop`: 개발 브랜치
-- `feature/*`: 기능 개발 브랜치
-
-### 커밋 컨벤션
-
-- `feat`: 새로운 기능
-- `fix`: 버그 수정
-- `docs`: 문서 수정
-- `style`: 코드 포맷팅
-- `refactor`: 코드 리팩토링
-- `test`: 테스트 코드
-- `chore`: 빌드, 설정 파일 수정
+AI 협업 시 코드 작성 규칙은 [CLAUDE.MD](./CLAUDE.MD) 참조.
 
 ## 라이센스
 
-ISC
-
-## 기여
-
-이슈와 PR은 언제나 환영합니다!
+MIT
