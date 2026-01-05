@@ -1,4 +1,46 @@
 import pool from '../config/db.js';
+import { marked } from 'marked';
+import createDOMPurify from 'isomorphic-dompurify';
+
+const DOMPurify = createDOMPurify();
+
+// Markdown 설정
+marked.setOptions({
+  gfm: true,              // GitHub Flavored Markdown
+  breaks: true,           // 줄바꿈을 <br>로 변환
+  headerIds: true,        // 헤더에 ID 자동 생성
+  mangle: false,          // 이메일 주소 난독화 비활성화
+});
+
+/**
+ * 마크다운을 안전한 HTML로 변환
+ * @param {string} markdown - 마크다운 텍스트
+ * @returns {string} - 안전한 HTML
+ */
+function renderMarkdown(markdown) {
+  if (!markdown || typeof markdown !== 'string') {
+    return '';
+  }
+
+  // 마크다운 → HTML
+  const rawHtml = marked.parse(markdown);
+
+  // XSS 방지 처리
+  const cleanHtml = DOMPurify.sanitize(rawHtml, {
+    ALLOWED_TAGS: [
+      'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+      'p', 'br', 'hr',
+      'ul', 'ol', 'li',
+      'strong', 'em', 'del', 'code', 'pre',
+      'a', 'img',
+      'blockquote',
+      'table', 'thead', 'tbody', 'tr', 'th', 'td',
+    ],
+    ALLOWED_ATTR: ['href', 'src', 'alt', 'title', 'class', 'id'],
+  });
+
+  return cleanHtml;
+}
 
 // Get all projects (ordered by created_at descending)
 export const getAllProjects = async () => {
@@ -35,6 +77,10 @@ export const createProject = async (projectData) => {
 
     const { title, description, content = '', stack = [], github_url } = projectData;
 
+    // 마크다운을 HTML로 변환
+    const content_markdown = content;
+    const content_html = renderMarkdown(content);
+
     // Shift all existing todo cards down by 1
     await client.query(
       `UPDATE projects
@@ -44,10 +90,10 @@ export const createProject = async (projectData) => {
 
     // Insert new project at position 0 in todo column
     const result = await client.query(
-      `INSERT INTO projects (title, description, content, stack, github_url, kanban_status, kanban_position)
-       VALUES ($1, $2, $3, $4, $5, 'todo', 0)
+      `INSERT INTO projects (title, description, content_markdown, content_html, stack, github_url, kanban_status, kanban_position)
+       VALUES ($1, $2, $3, $4, $5, $6, 'todo', 0)
        RETURNING *`,
-      [title, description, content, stack, github_url]
+      [title, description, content_markdown, content_html, stack, github_url]
     );
 
     await client.query('COMMIT');
@@ -81,8 +127,12 @@ export const updateProject = async (id, projectData) => {
       paramCount++;
     }
     if (content !== undefined) {
-      updates.push(`content = $${paramCount}`);
+      // 마크다운과 HTML 둘 다 업데이트
+      updates.push(`content_markdown = $${paramCount}`);
       values.push(content);
+      paramCount++;
+      updates.push(`content_html = $${paramCount}`);
+      values.push(renderMarkdown(content));
       paramCount++;
     }
     if (stack !== undefined) {

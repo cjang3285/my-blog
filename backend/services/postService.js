@@ -1,4 +1,46 @@
 import pool from '../config/db.js';
+import { marked } from 'marked';
+import createDOMPurify from 'isomorphic-dompurify';
+
+const DOMPurify = createDOMPurify();
+
+// Markdown 설정
+marked.setOptions({
+  gfm: true,              // GitHub Flavored Markdown
+  breaks: true,           // 줄바꿈을 <br>로 변환
+  headerIds: true,        // 헤더에 ID 자동 생성
+  mangle: false,          // 이메일 주소 난독화 비활성화
+});
+
+/**
+ * 마크다운을 안전한 HTML로 변환
+ * @param {string} markdown - 마크다운 텍스트
+ * @returns {string} - 안전한 HTML
+ */
+function renderMarkdown(markdown) {
+  if (!markdown || typeof markdown !== 'string') {
+    return '';
+  }
+
+  // 마크다운 → HTML
+  const rawHtml = marked.parse(markdown);
+
+  // XSS 방지 처리
+  const cleanHtml = DOMPurify.sanitize(rawHtml, {
+    ALLOWED_TAGS: [
+      'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+      'p', 'br', 'hr',
+      'ul', 'ol', 'li',
+      'strong', 'em', 'del', 'code', 'pre',
+      'a', 'img',
+      'blockquote',
+      'table', 'thead', 'tbody', 'tr', 'th', 'td',
+    ],
+    ALLOWED_ATTR: ['href', 'src', 'alt', 'title', 'class', 'id'],
+  });
+
+  return cleanHtml;
+}
 
 // Get all posts (ordered by date descending)
 export const getAllPosts = async () => {
@@ -61,11 +103,15 @@ export const createPost = async (postData) => {
     const slug = title.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9가-힣-]/g, '');
     const date = new Date().toISOString().split('T')[0];
 
+    // 마크다운을 HTML로 변환
+    const content_markdown = content;
+    const content_html = renderMarkdown(content);
+
     const result = await pool.query(
-      `INSERT INTO posts (title, slug, excerpt, content, date, tags, featured)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO posts (title, slug, excerpt, content_markdown, content_html, date, tags, featured)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
-      [title, slug, excerpt, content, date, tags, featured]
+      [title, slug, excerpt, content_markdown, content_html, date, tags, featured]
     );
     return result.rows[0];
   } catch (error) {
@@ -98,8 +144,12 @@ export const updatePost = async (id, postData) => {
       paramCount++;
     }
     if (content !== undefined) {
-      updates.push(`content = $${paramCount}`);
+      // 마크다운과 HTML 둘 다 업데이트
+      updates.push(`content_markdown = $${paramCount}`);
       values.push(content);
+      paramCount++;
+      updates.push(`content_html = $${paramCount}`);
+      values.push(renderMarkdown(content));
       paramCount++;
     }
     if (tags !== undefined) {
