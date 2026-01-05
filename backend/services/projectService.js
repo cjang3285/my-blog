@@ -1,8 +1,6 @@
 import pool from '../config/db.js';
 import { marked } from 'marked';
-import createDOMPurify from 'isomorphic-dompurify';
-
-const DOMPurify = createDOMPurify();
+import sanitizeHtml from 'sanitize-html';
 
 // Markdown 설정
 marked.setOptions({
@@ -26,8 +24,8 @@ function renderMarkdown(markdown) {
   const rawHtml = marked.parse(markdown);
 
   // XSS 방지 처리
-  const cleanHtml = DOMPurify.sanitize(rawHtml, {
-    ALLOWED_TAGS: [
+  const cleanHtml = sanitizeHtml(rawHtml, {
+    allowedTags: [
       'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
       'p', 'br', 'hr',
       'ul', 'ol', 'li',
@@ -36,7 +34,11 @@ function renderMarkdown(markdown) {
       'blockquote',
       'table', 'thead', 'tbody', 'tr', 'th', 'td',
     ],
-    ALLOWED_ATTR: ['href', 'src', 'alt', 'title', 'class', 'id'],
+    allowedAttributes: {
+      a: ['href', 'title'],
+      img: ['src', 'alt', 'title'],
+      '*': ['class', 'id']
+    },
   });
 
   return cleanHtml;
