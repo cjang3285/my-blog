@@ -159,7 +159,7 @@ const API_URL = import.meta.env.PUBLIC_API_URL || '';
           <div class="text-gray-300 text-lg leading-relaxed">
             <p class="text-xl italic text-gray-400 mb-8">${post.excerpt}</p>
             <div class="w-full h-px bg-gray-800 my-8"></div>
-            <div class="prose prose-invert max-w-none prose-p:text-lg prose-p:leading-relaxed whitespace-pre-wrap">${post.content}</div>
+            <div class="prose prose-invert max-w-none prose-p:text-lg prose-p:leading-relaxed">${post.content_html || post.content || ''}</div>
           </div>
         </article>
       `;
@@ -195,7 +195,7 @@ const API_URL = import.meta.env.PUBLIC_API_URL || '';
     (document.getElementById('post-id')).value = currentPost.id;
     (document.getElementById('post-title')).value = currentPost.title;
     (document.getElementById('post-excerpt')).value = currentPost.excerpt || '';
-    (document.getElementById('post-content')).value = currentPost.content || '';
+    (document.getElementById('post-content')).value = currentPost.content_markdown || currentPost.content || '';
     (document.getElementById('post-tags')).value = currentPost.tags ? currentPost.tags.join(', ') : '';
     (document.getElementById('post-featured')).checked = currentPost.featured || false;
 

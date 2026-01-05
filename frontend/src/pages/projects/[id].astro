@@ -161,11 +161,11 @@ const API_URL = import.meta.env.PUBLIC_API_URL || '';
             </section>
 
             <!-- Content (상세 본문) -->
-            ${project.content ? `
+            ${project.content_html || project.content ? `
               <section>
                 <h2 class="text-2xl font-semibold mb-4 text-gray-200">상세 내용</h2>
                 <div class="prose prose-invert max-w-none">
-                  <p class="text-gray-300 leading-relaxed whitespace-pre-wrap">${project.content}</p>
+                  <div class="text-gray-300 leading-relaxed">${project.content_html || project.content || ''}</div>
                 </div>
               </section>
             ` : ''}
@@ -238,7 +238,7 @@ const API_URL = import.meta.env.PUBLIC_API_URL || '';
 
     (document.getElementById('project-title')).value = currentProject.title;
     (document.getElementById('project-description')).value = currentProject.description;
-    (document.getElementById('project-content')).value = currentProject.content || '';
+    (document.getElementById('project-content')).value = currentProject.content_markdown || currentProject.content || '';
     (document.getElementById('project-stack')).value = currentProject.stack ? currentProject.stack.join(', ') : '';
     (document.getElementById('project-github_url')).value = currentProject.github_url || '';
 
