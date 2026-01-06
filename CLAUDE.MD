@@ -255,5 +255,41 @@ function renderMarkdown(markdown) {
 - [x] 백엔드 재시작 테스트 (정상 동작 확인)
 - [x] 마크다운 렌더링 단위 테스트 (GFM, 테이블, 링크 등)
 - [x] XSS 방지 검증 (script 태그, onerror 속성 제거 확인)
+- [x] 기존 데이터 마이그레이션 (content_html 생성)
 - [ ] 신규 포스트/프로젝트 생성 통합 테스트
 - [ ] 기존 데이터 표시 확인 (프로덕션 환경)
+
+### 트러블슈팅
+
+**문제 1: 기존 본문이 사라지고 undefined 표시**
+
+원인:
+- DB `content_html` 컬럼이 빈 문자열 `""`
+- 프론트엔드 폴백: `post.content_html || post.content`
+- 빈 문자열도 truthy이므로 빈 문자열 반환
+- `content_markdown` 폴백 누락
+
+해결:
+- 폴백 체인 수정: `post.content_html || post.content_markdown || post.content`
+- 커밋: e65faa5
+
+**문제 2: HTML 태그가 텍스트로 표시**
+
+원인:
+- 템플릿 리터럴 안에서 HTML 문자열 삽입 시 자동 이스케이프
+- `<h2>` → 텍스트로 표시
+
+해결:
+- 별도 div 생성: `<div id="post-content"></div>`
+- JavaScript에서 `innerHTML` 직접 설정
+- 커밋: a70eee3
+
+**문제 3: 마크다운 헤더 파싱 안됨**
+
+증상:
+- `##텍스트` → `##` 그대로 표시
+- `## 텍스트` → `<h2>` 태그로 변환
+
+원인: 마크다운 표준 문법에서 `#` 뒤 공백 필수
+
+해결: 사용자 교육 (마크다운 문법 준수)
