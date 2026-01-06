@@ -1,48 +1,5 @@
 import pool from '../config/db.js';
-import { marked } from 'marked';
-import sanitizeHtml from 'sanitize-html';
-
-// Markdown 설정
-marked.setOptions({
-  gfm: true,              // GitHub Flavored Markdown
-  breaks: true,           // 줄바꿈을 <br>로 변환
-  headerIds: true,        // 헤더에 ID 자동 생성
-  mangle: false,          // 이메일 주소 난독화 비활성화
-});
-
-/**
- * 마크다운을 안전한 HTML로 변환
- * @param {string} markdown - 마크다운 텍스트
- * @returns {string} - 안전한 HTML
- */
-function renderMarkdown(markdown) {
-  if (!markdown || typeof markdown !== 'string') {
-    return '';
-  }
-
-  // 마크다운 → HTML
-  const rawHtml = marked.parse(markdown);
-
-  // XSS 방지 처리
-  const cleanHtml = sanitizeHtml(rawHtml, {
-    allowedTags: [
-      'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-      'p', 'br', 'hr',
-      'ul', 'ol', 'li',
-      'strong', 'em', 'del', 'code', 'pre',
-      'a', 'img',
-      'blockquote',
-      'table', 'thead', 'tbody', 'tr', 'th', 'td',
-    ],
-    allowedAttributes: {
-      a: ['href', 'title'],
-      img: ['src', 'alt', 'title'],
-      '*': ['class', 'id']
-    },
-  });
-
-  return cleanHtml;
-}
+import { renderMarkdown } from '../utils/markdown.js';
 
 // Get all posts (ordered by date descending)
 export const getAllPosts = async () => {
