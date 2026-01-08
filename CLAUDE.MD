@@ -293,3 +293,92 @@ function renderMarkdown(markdown) {
 원인: 마크다운 표준 문법에서 `#` 뒤 공백 필수
 
 해결: 사용자 교육 (마크다운 문법 준수)
+
+**문제 4: prose 클래스 스타일 미적용**
+
+증상:
+- HTML은 렌더링되지만 일반 텍스트처럼 보임
+- 헤더가 크게 표시되지 않음, 굵기 없음
+- `prose` 클래스는 적용되어 있으나 스타일 없음
+
+원인:
+- Tailwind CSS v4 환경에서 Typography 플러그인 누락
+- `@tailwindcss/typography` 패키지는 설치했으나 CSS에서 활성화 안함
+
+진단 과정:
+```javascript
+// 브라우저 Console에서 확인
+const div = document.getElementById('post-body');
+console.log(window.getComputedStyle(div).whiteSpace); // "normal" (정상)
+console.log(div.classList); // prose 클래스 있음 (정상)
+// 하지만 스타일이 적용되지 않음
+```
+
+해결:
+- `frontend/src/styles/global.css`에 플러그인 추가:
+```css
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+```
+- 커밋: c9c7e19
+
+### 구현 요약
+
+**최종 아키텍처:**
+```
+사용자 입력 (마크다운)
+    ↓
+백엔드: renderMarkdown()
+    ├─ marked.parse() → 마크다운 → HTML
+    └─ sanitizeHtml() → XSS 필터링
+    ↓
+DB 저장
+    ├─ content_markdown (원본)
+    └─ content_html (렌더링된 HTML)
+    ↓
+API 응답
+    ↓
+프론트엔드: innerHTML 설정
+    ├─ fetch API로 데이터 가져오기
+    ├─ div#post-body.innerHTML = content_html
+    └─ Tailwind Typography로 스타일링
+    ↓
+사용자에게 표시 (렌더링된 마크다운)
+```
+
+**성공 기준:**
+- ✅ 마크다운 작성 및 저장
+- ✅ HTML로 자동 변환 (서버 사이드)
+- ✅ XSS 공격 방지
+- ✅ 헤더, 리스트, 링크, 테이블 등 GFM 지원
+- ✅ 기존 데이터 호환성 유지
+- ✅ prose 스타일 적용
+
+**핵심 교훈:**
+1. **Tailwind v4 변경사항**: v3의 `tailwind.config.js` 플러그인 방식이 아닌, CSS 파일에서 `@plugin` 지시어 사용
+2. **ESM vs CommonJS 호환성**: jsdom 기반 라이브러리들의 의존성 체인 확인 필요
+3. **템플릿 리터럴 이스케이핑**: 동적 HTML 삽입 시 innerHTML 직접 사용 필요
+4. **폴백 체인 설계**: 빈 문자열도 truthy이므로 명시적 체크 필요
+5. **단계별 진단**: DB → 백엔드 → API → 프론트엔드 → CSS 순서로 체계적 확인
+
+### 배포 완료
+
+**최종 상태:**
+- DB: content_markdown, content_html 컬럼 정상 동작
+- 백엔드: marked + sanitize-html 정상 동작
+- 프론트엔드: innerHTML + Typography 스타일 정상 적용
+- 프로덕션 환경: 마크다운 렌더링 성공 확인
+
+**변경된 파일:**
+- `backend/utils/markdown.js` (신규)
+- `backend/services/postService.js`
+- `backend/services/projectService.js`
+- `backend/package.json`
+- `frontend/src/pages/blog/[slug].astro`
+- `frontend/src/pages/projects/[id].astro`
+- `frontend/src/styles/global.css`
+- DB 스키마: `blog.posts`, `blog.projects`
+
+**브랜치:** `claude/add-markdown-support-6fGtE`
+**총 커밋 수:** 12개
+**구현 기간:** 2026-01-05 ~ 2026-01-08
