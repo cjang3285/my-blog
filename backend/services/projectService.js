@@ -1,4 +1,5 @@
 import pool from '../config/db.js';
+import { renderMarkdown } from '../utils/markdown.js';
 
 // Get all projects (ordered by created_at descending)
 export const getAllProjects = async () => {
@@ -35,6 +36,10 @@ export const createProject = async (projectData) => {
 
     const { title, description, content = '', stack = [], github_url } = projectData;
 
+    // 마크다운을 HTML로 변환
+    const content_markdown = content;
+    const content_html = renderMarkdown(content);
+
     // Shift all existing todo cards down by 1
     await client.query(
       `UPDATE projects
@@ -44,10 +49,10 @@ export const createProject = async (projectData) => {
 
     // Insert new project at position 0 in todo column
     const result = await client.query(
-      `INSERT INTO projects (title, description, content, stack, github_url, kanban_status, kanban_position)
-       VALUES ($1, $2, $3, $4, $5, 'todo', 0)
+      `INSERT INTO projects (title, description, content_markdown, content_html, stack, github_url, kanban_status, kanban_position)
+       VALUES ($1, $2, $3, $4, $5, $6, 'todo', 0)
        RETURNING *`,
-      [title, description, content, stack, github_url]
+      [title, description, content_markdown, content_html, stack, github_url]
     );
 
     await client.query('COMMIT');
@@ -81,8 +86,12 @@ export const updateProject = async (id, projectData) => {
       paramCount++;
     }
     if (content !== undefined) {
-      updates.push(`content = $${paramCount}`);
+      // 마크다운과 HTML 둘 다 업데이트
+      updates.push(`content_markdown = $${paramCount}`);
       values.push(content);
+      paramCount++;
+      updates.push(`content_html = $${paramCount}`);
+      values.push(renderMarkdown(content));
       paramCount++;
     }
     if (stack !== undefined) {

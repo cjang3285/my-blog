@@ -1,4 +1,5 @@
 import pool from '../config/db.js';
+import { renderMarkdown } from '../utils/markdown.js';
 
 // Get all posts (ordered by date descending)
 export const getAllPosts = async () => {
@@ -61,11 +62,15 @@ export const createPost = async (postData) => {
     const slug = title.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9가-힣-]/g, '');
     const date = new Date().toISOString().split('T')[0];
 
+    // 마크다운을 HTML로 변환
+    const content_markdown = content;
+    const content_html = renderMarkdown(content);
+
     const result = await pool.query(
-      `INSERT INTO posts (title, slug, excerpt, content, date, tags, featured)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO posts (title, slug, excerpt, content_markdown, content_html, date, tags, featured)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
-      [title, slug, excerpt, content, date, tags, featured]
+      [title, slug, excerpt, content_markdown, content_html, date, tags, featured]
     );
     return result.rows[0];
   } catch (error) {
@@ -98,8 +103,12 @@ export const updatePost = async (id, postData) => {
       paramCount++;
     }
     if (content !== undefined) {
-      updates.push(`content = $${paramCount}`);
+      // 마크다운과 HTML 둘 다 업데이트
+      updates.push(`content_markdown = $${paramCount}`);
       values.push(content);
+      paramCount++;
+      updates.push(`content_html = $${paramCount}`);
+      values.push(renderMarkdown(content));
       paramCount++;
     }
     if (tags !== undefined) {

@@ -22,7 +22,9 @@
     "dotenv": "16.4.7",
     "express": "5.2.1",
     "express-session": "1.18.1",
-    "pg": "8.13.1"
+    "marked": "15.0.6",
+    "pg": "8.13.1",
+    "sanitize-html": "2.14.0"
   },
   "devDependencies": {
     "@eslint/js": "9.17.0",

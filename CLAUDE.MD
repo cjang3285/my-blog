@@ -70,3 +70,315 @@ Claude AI 개발 가이드라인
 - 전문 소프트웨어로 측정한 성능 수치만 기입
 - 로컬 테스트 수치는 절대 기입 금지
 - 신뢰 가능한 벤치마크 결과만 문서화
+
+## 4. 마크다운 지원 구현 (2026-01-05)
+
+### 구현 목표
+블로그 포스트 및 프로젝트의 본문 작성 시 마크다운 문법 지원
+
+### 아키텍처 결정: 서버 사이드 렌더링 (Option A)
+DB에 마크다운 원본(`content_markdown`)과 렌더링된 HTML(`content_html`)을 모두 저장하는 이중 컬럼 방식 채택.
+
+**선택 이유:**
+- SEO: 서버에서 HTML을 생성하여 검색엔진 크롤러가 콘텐츠를 즉시 읽을 수 있음
+- 성능: 클라이언트에서 매번 마크다운 파싱하는 오버헤드 제거
+- 보안: 서버에서 XSS 방지 처리를 중앙화하여 클라이언트 우회 불가능
+- 유지보수: 원본 마크다운을 보존하여 수정 시 원본 데이터 유지
+
+**대안 (미채택):**
+- Option B (클라이언트 렌더링): 클라이언트 번들 크기 증가, SEO 불리
+- Option C (캐시 기반): 인프라 복잡도 증가, 오버엔지니어링
+
+### 데이터베이스 스키마 변경
+
+```sql
+-- blog.posts 테이블
+ALTER TABLE blog.posts RENAME COLUMN content TO content_markdown;
+ALTER TABLE blog.posts ADD COLUMN content_html TEXT DEFAULT '';
+
+-- blog.projects 테이블
+ALTER TABLE blog.projects RENAME COLUMN content TO content_markdown;
+ALTER TABLE blog.projects ADD COLUMN content_html TEXT DEFAULT '';
+```
+
+**적용 범위:**
+- Posts: 본문(`content`) 필드만 마크다운 지원
+- Projects: 상세 내용(`content`) 필드만 마크다운 지원, 간단한 소개(`description`)는 plain text 유지
+
+### 라이브러리 선택: marked + sanitize-html
+
+**marked v15.0.6**
+- 역할: 마크다운 → HTML 파싱
+- GitHub Flavored Markdown (GFM) 지원
+- 설정:
+  - `gfm: true` - 테이블, 취소선, 자동 링크 등
+  - `breaks: true` - 개행을 `<br>` 태그로 변환
+  - `headerIds: true` - 헤더에 ID 자동 생성 (앵커 링크)
+  - `mangle: false` - 이메일 주소 난독화 비활성화
+
+**sanitize-html v2.14.0**
+- 역할: XSS 공격 방지
+- 허용 태그: h1~h6, p, br, hr, ul, ol, li, strong, em, del, code, pre, a, img, blockquote, table, thead, tbody, tr, th, td
+- 허용 속성:
+  - `a`: href, title
+  - `img`: src, alt, title
+  - `*`: class, id
+
+**대안 라이브러리 시도 및 실패:**
+1. `isomorphic-dompurify`: ERR_REQUIRE_ESM 에러 발생
+   - 에러 경로: `node_modules/@exodus/bytes/encoding-lite.js`
+   - 원인: jsdom → html-encoding-sniffer → @exodus/bytes 의존성 체인에서 @exodus/bytes가 ESM 전용 모듈이나 CommonJS 컨텍스트에서 require()로 로드 시도
+   - 로그: `/home/jcw/my-blog/backend/logs/err.log`에서 확인
+
+2. `sanitize-html`로 교체 후 해결
+   - 동일한 jsdom 의존성을 갖지만 최신 버전에서 ESM 호환성 개선됨
+   - 격리 환경 테스트(`node test-sanitize.mjs`)에서 정상 동작 확인
+
+### 백엔드 구현
+
+**`backend/services/postService.js`**
+**`backend/services/projectService.js`**
+
+```javascript
+import { marked } from 'marked';
+import sanitizeHtml from 'sanitize-html';
+
+marked.setOptions({
+  gfm: true,
+  breaks: true,
+  headerIds: true,
+  mangle: false,
+});
+
+function renderMarkdown(markdown) {
+  if (!markdown || typeof markdown !== 'string') {
+    return '';
+  }
+  const rawHtml = marked.parse(markdown);
+  const cleanHtml = sanitizeHtml(rawHtml, {
+    allowedTags: [
+      'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+      'p', 'br', 'hr',
+      'ul', 'ol', 'li',
+      'strong', 'em', 'del', 'code', 'pre',
+      'a', 'img',
+      'blockquote',
+      'table', 'thead', 'tbody', 'tr', 'th', 'td',
+    ],
+    allowedAttributes: {
+      a: ['href', 'title'],
+      img: ['src', 'alt', 'title'],
+      '*': ['class', 'id']
+    },
+  });
+  return cleanHtml;
+}
+```
+
+**CREATE 로직 변경:**
+- 입력: `content` (마크다운 원본)
+- DB 저장: `content_markdown` = 원본, `content_html` = renderMarkdown(원본)
+
+**UPDATE 로직 변경:**
+- `content` 필드 수정 시 `content_markdown`와 `content_html` 모두 업데이트
+- 파라미터 카운트: content 하나로 2개 컬럼 업데이트
+
+### 프론트엔드 구현
+
+**`frontend/src/pages/blog/[slug].astro`**
+- 표시: `post.content_html || post.content`
+  - 우선 content_html 사용 (렌더링된 HTML)
+  - 없으면 content 폴백 (마이그레이션 이전 데이터 호환)
+- 수정 모달: `currentPost.content_markdown || currentPost.content`
+  - 편집 시 마크다운 원본 사용
+
+**`frontend/src/pages/projects/[id].astro`**
+- 동일한 패턴 적용
+
+**스타일링:**
+- Tailwind Typography (`prose prose-invert`) 클래스 사용
+- 다크 테마 대응, 최대 너비 제한 없음
+
+### 보안 고려사항
+
+**XSS 방지 계층:**
+1. 서버: sanitizeHtml로 허용되지 않은 태그/속성 제거
+2. DB: 사전 정제된 HTML만 저장
+3. 프론트엔드: innerHTML 대신 템플릿 리터럴 사용 (Astro 기본 이스케이핑)
+
+**허용하지 않는 태그:**
+- `<script>`, `<iframe>`, `<object>`, `<embed>`: 코드 실행 방지
+- `<form>`, `<input>`: CSRF 공격 벡터 제거
+- `<style>`: CSS 인젝션 방지
+
+### 에러 핸들링
+
+**renderMarkdown 함수:**
+- 입력이 null/undefined/non-string: 빈 문자열 반환
+- 마크다운 파싱 실패: marked 라이브러리가 일반 텍스트로 처리
+- HTML 정제 실패: sanitizeHtml이 모든 태그 제거 (빈 문자열 또는 텍스트만 남김)
+
+### 마이그레이션 전략
+
+**기존 데이터 호환성:**
+- 컬럼명 변경: `content` → `content_markdown`
+- 기존 `content` 데이터는 마크다운 원본으로 간주
+- `content_html`은 빈 문자열 기본값
+- 프론트엔드에서 폴백 처리로 기존 데이터 표시 가능
+
+**점진적 적용:**
+1. 스키마 변경
+2. 백엔드 코드 배포
+3. 신규 작성 글부터 자동으로 HTML 생성
+4. 기존 글 수정 시 HTML 자동 생성
+
+### 테스트 계획
+
+1. 마크다운 파싱 테스트
+   - 헤더, 리스트, 코드 블록, 링크, 이미지
+   - GFM 확장 문법: 테이블, 취소선, 체크박스
+
+2. XSS 방지 테스트
+   - `<script>alert('XSS')</script>` → 제거됨
+   - `<img src=x onerror=alert('XSS')>` → onerror 속성 제거됨
+
+3. 기존 데이터 호환성 테스트
+   - content_html이 없는 레코드도 정상 표시
+
+### 배포 체크리스트
+
+- [x] DB 스키마 변경 적용
+- [x] package.json에 의존성 추가 (marked, sanitize-html)
+- [x] npm install 실행
+- [x] 백엔드 서비스 코드 수정
+- [x] 프론트엔드 페이지 수정
+- [x] 백엔드 재시작 테스트 (정상 동작 확인)
+- [x] 마크다운 렌더링 단위 테스트 (GFM, 테이블, 링크 등)
+- [x] XSS 방지 검증 (script 태그, onerror 속성 제거 확인)
+- [x] 기존 데이터 마이그레이션 (content_html 생성)
+- [ ] 신규 포스트/프로젝트 생성 통합 테스트
+- [ ] 기존 데이터 표시 확인 (프로덕션 환경)
+
+### 트러블슈팅
+
+**문제 1: 기존 본문이 사라지고 undefined 표시**
+
+원인:
+- DB `content_html` 컬럼이 빈 문자열 `""`
+- 프론트엔드 폴백: `post.content_html || post.content`
+- 빈 문자열도 truthy이므로 빈 문자열 반환
+- `content_markdown` 폴백 누락
+
+해결:
+- 폴백 체인 수정: `post.content_html || post.content_markdown || post.content`
+- 커밋: e65faa5
+
+**문제 2: HTML 태그가 텍스트로 표시**
+
+원인:
+- 템플릿 리터럴 안에서 HTML 문자열 삽입 시 자동 이스케이프
+- `<h2>` → 텍스트로 표시
+
+해결:
+- 별도 div 생성: `<div id="post-content"></div>`
+- JavaScript에서 `innerHTML` 직접 설정
+- 커밋: a70eee3
+
+**문제 3: 마크다운 헤더 파싱 안됨**
+
+증상:
+- `##텍스트` → `##` 그대로 표시
+- `## 텍스트` → `<h2>` 태그로 변환
+
+원인: 마크다운 표준 문법에서 `#` 뒤 공백 필수
+
+해결: 사용자 교육 (마크다운 문법 준수)
+
+**문제 4: prose 클래스 스타일 미적용**
+
+증상:
+- HTML은 렌더링되지만 일반 텍스트처럼 보임
+- 헤더가 크게 표시되지 않음, 굵기 없음
+- `prose` 클래스는 적용되어 있으나 스타일 없음
+
+원인:
+- Tailwind CSS v4 환경에서 Typography 플러그인 누락
+- `@tailwindcss/typography` 패키지는 설치했으나 CSS에서 활성화 안함
+
+진단 과정:
+```javascript
+// 브라우저 Console에서 확인
+const div = document.getElementById('post-body');
+console.log(window.getComputedStyle(div).whiteSpace); // "normal" (정상)
+console.log(div.classList); // prose 클래스 있음 (정상)
+// 하지만 스타일이 적용되지 않음
+```
+
+해결:
+- `frontend/src/styles/global.css`에 플러그인 추가:
+```css
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+```
+- 커밋: c9c7e19
+
+### 구현 요약
+
+**최종 아키텍처:**
+```
+사용자 입력 (마크다운)
+    ↓
+백엔드: renderMarkdown()
+    ├─ marked.parse() → 마크다운 → HTML
+    └─ sanitizeHtml() → XSS 필터링
+    ↓
+DB 저장
+    ├─ content_markdown (원본)
+    └─ content_html (렌더링된 HTML)
+    ↓
+API 응답
+    ↓
+프론트엔드: innerHTML 설정
+    ├─ fetch API로 데이터 가져오기
+    ├─ div#post-body.innerHTML = content_html
+    └─ Tailwind Typography로 스타일링
+    ↓
+사용자에게 표시 (렌더링된 마크다운)
+```
+
+**성공 기준:**
+- ✅ 마크다운 작성 및 저장
+- ✅ HTML로 자동 변환 (서버 사이드)
+- ✅ XSS 공격 방지
+- ✅ 헤더, 리스트, 링크, 테이블 등 GFM 지원
+- ✅ 기존 데이터 호환성 유지
+- ✅ prose 스타일 적용
+
+**핵심 교훈:**
+1. **Tailwind v4 변경사항**: v3의 `tailwind.config.js` 플러그인 방식이 아닌, CSS 파일에서 `@plugin` 지시어 사용
+2. **ESM vs CommonJS 호환성**: jsdom 기반 라이브러리들의 의존성 체인 확인 필요
+3. **템플릿 리터럴 이스케이핑**: 동적 HTML 삽입 시 innerHTML 직접 사용 필요
+4. **폴백 체인 설계**: 빈 문자열도 truthy이므로 명시적 체크 필요
+5. **단계별 진단**: DB → 백엔드 → API → 프론트엔드 → CSS 순서로 체계적 확인
+
+### 배포 완료
+
+**최종 상태:**
+- DB: content_markdown, content_html 컬럼 정상 동작
+- 백엔드: marked + sanitize-html 정상 동작
+- 프론트엔드: innerHTML + Typography 스타일 정상 적용
+- 프로덕션 환경: 마크다운 렌더링 성공 확인
+
+**변경된 파일:**
+- `backend/utils/markdown.js` (신규)
+- `backend/services/postService.js`
+- `backend/services/projectService.js`
+- `backend/package.json`
+- `frontend/src/pages/blog/[slug].astro`
+- `frontend/src/pages/projects/[id].astro`
+- `frontend/src/styles/global.css`
+- DB 스키마: `blog.posts`, `blog.projects`
+
+**브랜치:** `claude/add-markdown-support-6fGtE`
+**총 커밋 수:** 12개
+**구현 기간:** 2026-01-05 ~ 2026-01-08
