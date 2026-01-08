@@ -12,15 +12,15 @@ echo ""
 echo "========== 1. 데이터베이스 체크 =========="
 echo ""
 echo "[1-1] 스키마 확인:"
-sudo -u postgres psql -d my_blog -c "\d blog.posts" | grep content
+sudo -u postgres psql -h localhost -d my_blog -c "\d blog.posts" | grep content
 echo ""
 
 echo "[1-2] 데이터 샘플 (첫 번째 포스트):"
-sudo -u postgres psql -d my_blog -c "SELECT id, title, LEFT(content_markdown, 80) as markdown, LEFT(content_html, 80) as html FROM blog.posts ORDER BY id DESC LIMIT 1"
+sudo -u postgres psql -h localhost -d my_blog -c "SELECT id, title, LEFT(content_markdown, 80) as markdown, LEFT(content_html, 80) as html FROM blog.posts ORDER BY id DESC LIMIT 1"
 echo ""
 
 echo "[1-3] content_html 빈 레코드 개수:"
-sudo -u postgres psql -d my_blog -c "SELECT COUNT(*) as empty_html_count FROM blog.posts WHERE content_html = ''"
+sudo -u postgres psql -h localhost -d my_blog -c "SELECT COUNT(*) as empty_html_count FROM blog.posts WHERE content_html = ''"
 echo ""
 
 # 2단계: 백엔드 파일
