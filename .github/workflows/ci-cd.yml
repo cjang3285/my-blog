@@ -361,7 +361,7 @@ jobs:
     name: Deploy to Production
     runs-on: ubuntu-latest
     needs: deploy-staging
-    if: github.ref == 'refs/heads/main' && secrets.GH_PAT != ''
+    if: github.ref == 'refs/heads/main'
     environment:
       name: production
       url: https://yourblog.com
