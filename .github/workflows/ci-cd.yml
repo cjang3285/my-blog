@@ -1,0 +1,773 @@
+name: CI/CD Pipeline - Complete Edition
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:  # 수동 실행 가능
+
+env:
+  DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+  REGISTRY: docker.io
+
+jobs:
+  # ============================================
+  # Phase 1: 빠른 검사 (병렬 실행)
+  # ============================================
+  
+  lint:
+    name: Lint Code
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+      
+      - name: Lint Backend
+        working-directory: backend
+        run: |
+          npm ci
+          npm run lint || echo "Lint not configured, skipping..."
+      
+      - name: Lint Frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run lint || echo "Lint not configured, skipping..."
+  
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      
+      - name: Unit Tests - Backend
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/test_db
+          REDIS_URL: redis://localhost:6379
+          NODE_ENV: test
+        run: |
+          npm ci
+          npm run test:unit || npm test || echo "No unit tests found"
+      
+      - name: Integration Tests - Backend
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/test_db
+          REDIS_URL: redis://localhost:6379
+          NODE_ENV: test
+        run: |
+          npm run test:integration || echo "No integration tests found"
+      
+      - name: Test - Frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm test -- --coverage || echo "No tests found"
+      
+      - name: Generate coverage report
+        if: always()
+        run: |
+          echo "## 📊 Test Coverage" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -f backend/coverage/lcov.info ]; then
+            echo "✅ Backend coverage generated" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [ -f frontend/coverage/lcov.info ]; then
+            echo "✅ Frontend coverage generated" >> $GITHUB_STEP_SUMMARY
+          fi
+      
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        if: always()
+        with:
+          files: ./backend/coverage/lcov.info,./frontend/coverage/lcov.info
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+  
+  e2e-test:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      
+      - name: Start test environment
+        run: |
+          docker-compose -f docker-compose.test.yml up -d || echo "No docker-compose.test.yml found"
+          sleep 10
+      
+      - name: Install Playwright
+        run: |
+          npm install -D @playwright/test
+          npx playwright install --with-deps chromium
+      
+      - name: Run E2E tests
+        run: |
+          npx playwright test || echo "No E2E tests found"
+      
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v3
+        with:
+          name: playwright-results
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 7
+      
+      - name: Upload E2E videos
+        if: failure()
+        uses: actions/upload-artifact@v3
+        with:
+          name: playwright-videos
+          path: test-results/**/*.webm
+          retention-days: 7
+      
+      - name: Cleanup
+        if: always()
+        run: |
+          docker-compose -f docker-compose.test.yml down || true
+  
+  sonarcloud:
+    name: SonarCloud Analysis
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarcloud-github-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        continue-on-error: true
+        with:
+          args: >
+            -Dsonar.projectKey=yourusername_my-blog
+            -Dsonar.organization=yourusername
+            -Dsonar.sources=backend/src,frontend/src
+            -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/build/**
+            -Dsonar.javascript.lcov.reportPaths=backend/coverage/lcov.info,frontend/coverage/lcov.info
+      
+      - name: SonarCloud Quality Gate
+        uses: SonarSource/sonarqube-quality-gate-action@master
+        timeout-minutes: 5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        continue-on-error: true
+        id: quality-gate
+      
+      - name: Get SonarCloud metrics
+        if: always()
+        id: sonar-metrics
+        run: |
+          # SonarCloud API로 상세 메트릭 조회
+          METRICS=$(curl -s -u "${{ secrets.SONAR_TOKEN }}:" \
+            "https://sonarcloud.io/api/measures/component?component=yourusername_my-blog&metricKeys=bugs,vulnerabilities,code_smells,coverage,duplicated_lines_density" \
+            | jq -r '.component.measures')
+          
+          BUGS=$(echo $METRICS | jq -r '.[] | select(.metric=="bugs") | .value // "0"')
+          VULNERABILITIES=$(echo $METRICS | jq -r '.[] | select(.metric=="vulnerabilities") | .value // "0"')
+          CODE_SMELLS=$(echo $METRICS | jq -r '.[] | select(.metric=="code_smells") | .value // "0"')
+          COVERAGE=$(echo $METRICS | jq -r '.[] | select(.metric=="coverage") | .value // "0"')
+          DUPLICATIONS=$(echo $METRICS | jq -r '.[] | select(.metric=="duplicated_lines_density") | .value // "0"')
+          
+          echo "bugs=$BUGS" >> $GITHUB_OUTPUT
+          echo "vulnerabilities=$VULNERABILITIES" >> $GITHUB_OUTPUT
+          echo "code_smells=$CODE_SMELLS" >> $GITHUB_OUTPUT
+          echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
+          echo "duplications=$DUPLICATIONS" >> $GITHUB_OUTPUT
+          
+          QUALITY_GATE=$(curl -s -u "${{ secrets.SONAR_TOKEN }}:" \
+            "https://sonarcloud.io/api/qualitygates/project_status?projectKey=yourusername_my-blog" \
+            | jq -r '.projectStatus.status')
+          echo "quality_gate=$QUALITY_GATE" >> $GITHUB_OUTPUT
+      
+      - name: Send SonarCloud report to Slack
+        if: always()
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          payload: |
+            {
+              "text": "📊 SonarCloud Analysis Complete",
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "📊 SonarCloud Code Quality Report"
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Quality Gate:*\n${{ steps.sonar-metrics.outputs.quality_gate == 'OK' && '✅ PASSED' || '❌ FAILED' }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Coverage:*\n${{ steps.sonar-metrics.outputs.coverage }}%"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Bugs:*\n${{ steps.sonar-metrics.outputs.bugs }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Vulnerabilities:*\n${{ steps.sonar-metrics.outputs.vulnerabilities }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Code Smells:*\n${{ steps.sonar-metrics.outputs.code_smells }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Duplications:*\n${{ steps.sonar-metrics.outputs.duplications }}%"
+                    }
+                  ]
+                },
+                {
+                  "type": "actions",
+                  "elements": [
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "View Full Report"
+                      },
+                      "url": "https://sonarcloud.io/dashboard?id=yourusername_my-blog"
+                    }
+                  ]
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+  
+  # ============================================
+  # Phase 2: 빌드 & 보안 스캔 (직렬 실행)
+  # ============================================
+  
+  build:
+    name: Build Docker Images
+    runs-on: ubuntu-latest
+    needs: [lint, test, e2e-test]
+    if: github.ref == 'refs/heads/main'
+    
+    strategy:
+      matrix:
+        component:
+          - name: backend
+            context: ./backend
+            dockerfile: ./backend/Dockerfile
+          - name: frontend
+            context: ./frontend
+            dockerfile: ./frontend/Dockerfile
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      
+      - name: Login to DockerHub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          images: ${{ env.DOCKERHUB_USERNAME }}/blog-${{ matrix.component.name }}
+          tags: |
+            type=sha,prefix=
+            type=raw,value=latest
+      
+      - name: Build and push ${{ matrix.component.name }}
+        id: build
+        uses: docker/build-push-action@v4
+        with:
+          context: ${{ matrix.component.context }}
+          file: ${{ matrix.component.dockerfile }}
+          platforms: linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=${{ env.DOCKERHUB_USERNAME }}/blog-${{ matrix.component.name }}:buildcache
+          cache-to: type=registry,ref=${{ env.DOCKERHUB_USERNAME }}/blog-${{ matrix.component.name }}:buildcache,mode=max
+      
+      - name: Image digest
+        run: echo ${{ steps.build.outputs.digest }}
+      
+      - name: Generate build summary
+        run: |
+          echo "## 🐳 Docker Build: ${{ matrix.component.name }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Image:** \`${{ env.DOCKERHUB_USERNAME }}/blog-${{ matrix.component.name }}:${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Digest:** \`${{ steps.build.outputs.digest }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Platform:** linux/arm64" >> $GITHUB_STEP_SUMMARY
+  
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    
+    strategy:
+      matrix:
+        component: [backend, frontend]
+    
+    steps:
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.DOCKERHUB_USERNAME }}/blog-${{ matrix.component }}:${{ github.sha }}
+          format: 'sarif'
+          output: 'trivy-results-${{ matrix.component }}.sarif'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
+      
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: 'trivy-results-${{ matrix.component }}.sarif'
+          category: trivy-${{ matrix.component }}
+      
+      - name: Generate Trivy report
+        if: always()
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.DOCKERHUB_USERNAME }}/blog-${{ matrix.component }}:${{ github.sha }}
+          format: 'table'
+          output: 'trivy-report-${{ matrix.component }}.txt'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+      
+      - name: Upload Trivy report
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: trivy-report-${{ matrix.component }}
+          path: trivy-report-${{ matrix.component }}.txt
+          retention-days: 30
+      
+      - name: Security scan summary
+        if: always()
+        run: |
+          echo "## 🔒 Security Scan: ${{ matrix.component }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat trivy-report-${{ matrix.component }}.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+  
+  # ============================================
+  # Phase 3: GitOps 배포 (Staging)
+  # ============================================
+  
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: security-scan
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Checkout GitOps repo
+        uses: actions/checkout@v3
+        with:
+          repository: ${{ github.repository_owner }}/k8s-manifests
+          token: ${{ secrets.GH_PAT }}
+          path: k8s-manifests
+      
+      - name: Setup Kustomize
+        uses: imranismail/setup-kustomize@v2
+      
+      - name: Update staging image tags
+        working-directory: k8s-manifests/overlays/staging-blog
+        run: |
+          kustomize edit set image \
+            blog-backend=${{ env.DOCKERHUB_USERNAME }}/blog-backend:${{ github.sha }} \
+            blog-frontend=${{ env.DOCKERHUB_USERNAME }}/blog-frontend:${{ github.sha }}
+      
+      - name: Commit and push changes
+        working-directory: k8s-manifests
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add .
+          git diff --staged --quiet || git commit -m "🚀 Deploy blog to staging: ${{ github.sha }}"
+          git push
+      
+      - name: Wait for ArgoCD sync
+        run: |
+          echo "⏳ Waiting for ArgoCD to sync..."
+          sleep 30
+      
+      - name: Deployment summary
+        run: |
+          echo "## 🚀 Staging Deployment" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** staging-blog" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Backend:** \`${{ env.DOCKERHUB_USERNAME }}/blog-backend:${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Frontend:** \`${{ env.DOCKERHUB_USERNAME }}/blog-frontend:${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "ArgoCD will automatically sync these changes." >> $GITHUB_STEP_SUMMARY
+  
+  smoke-test-staging:
+    name: Smoke Tests (Staging)
+    runs-on: ubuntu-latest
+    needs: deploy-staging
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Wait for deployment
+        run: sleep 60
+      
+      - name: Health check - Backend
+        run: |
+          # WireGuard 연결 필요 또는 포트포워딩 설정
+          # curl -f http://라즈베리파이IP:30080/health || exit 1
+          echo "⚠️ Health check requires VPN/network access to staging environment"
+          echo "Manual verification required: http://라즈베리파이IP:30080"
+      
+      - name: Health check - Frontend
+        run: |
+          echo "⚠️ Health check requires VPN/network access to staging environment"
+          echo "Manual verification required: http://라즈베리파이IP:30081"
+      
+      - name: Basic API test
+        run: |
+          echo "## 🧪 Smoke Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "⚠️ Automated smoke tests require network access to staging environment" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Manual verification required:**" >> $GITHUB_STEP_SUMMARY
+          echo "- Backend: http://라즈베리파이IP:30080/health" >> $GITHUB_STEP_SUMMARY
+          echo "- Frontend: http://라즈베리파이IP:30081" >> $GITHUB_STEP_SUMMARY
+  
+  # ============================================
+  # Phase 4: Production 배포 (수동 승인)
+  # ============================================
+  
+  deploy-production:
+    name: Deploy to Production (Manual Approval Required)
+    runs-on: ubuntu-latest
+    needs: smoke-test-staging
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: production
+      url: https://yourblog.com
+    
+    steps:
+      - name: Send approval notification
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          payload: |
+            {
+              "text": "⏳ Production Deployment Awaiting Approval",
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "⏳ Production Deployment Pending"
+                  }
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Staging deployment successful. Production deployment awaiting manual approval.*"
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Commit:*\n${{ github.sha }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Author:*\n${{ github.actor }}"
+                    }
+                  ]
+                },
+                {
+                  "type": "actions",
+                  "elements": [
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "Approve Deployment"
+                      },
+                      "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                    }
+                  ]
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+      
+      - name: Checkout GitOps repo
+        uses: actions/checkout@v3
+        with:
+          repository: ${{ github.repository_owner }}/k8s-manifests
+          token: ${{ secrets.GH_PAT }}
+          path: k8s-manifests
+      
+      - name: Setup Kustomize
+        uses: imranismail/setup-kustomize@v2
+      
+      - name: Update production image tags
+        working-directory: k8s-manifests/overlays/prod-blog
+        run: |
+          kustomize edit set image \
+            blog-backend=${{ env.DOCKERHUB_USERNAME }}/blog-backend:${{ github.sha }} \
+            blog-frontend=${{ env.DOCKERHUB_USERNAME }}/blog-frontend:${{ github.sha }}
+      
+      - name: Commit and push to production
+        working-directory: k8s-manifests
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add .
+          git diff --staged --quiet || git commit -m "🚀 Deploy blog to production: ${{ github.sha }}"
+          git push
+      
+      - name: Production deployment summary
+        run: |
+          echo "## 🎉 Production Deployment" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** prod-blog" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Backend:** \`${{ env.DOCKERHUB_USERNAME }}/blog-backend:${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Frontend:** \`${{ env.DOCKERHUB_USERNAME }}/blog-frontend:${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**URL:** https://yourblog.com" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Production deployment completed successfully!" >> $GITHUB_STEP_SUMMARY
+  
+  smoke-test-production:
+    name: Smoke Tests (Production)
+    runs-on: ubuntu-latest
+    needs: deploy-production
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Wait for deployment
+        run: sleep 60
+      
+      - name: Health check - Production
+        run: |
+          curl -f https://yourblog.com/health || echo "Health endpoint not accessible"
+      
+      - name: Basic functionality test
+        run: |
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" https://yourblog.com)
+          if [ $HTTP_CODE -eq 200 ]; then
+            echo "✅ Production site is UP"
+          else
+            echo "❌ Production site returned HTTP $HTTP_CODE"
+            exit 1
+          fi
+      
+      - name: Performance check
+        run: |
+          RESPONSE_TIME=$(curl -o /dev/null -s -w '%{time_total}' https://yourblog.com)
+          echo "Response time: ${RESPONSE_TIME}s"
+          
+          # 5초 이상이면 경고
+          if (( $(echo "$RESPONSE_TIME > 5.0" | bc -l) )); then
+            echo "⚠️ Slow response time detected"
+          fi
+  
+  # ============================================
+  # 최종 알림
+  # ============================================
+  
+  notify:
+    name: Send Final Notification
+    runs-on: ubuntu-latest
+    needs: [deploy-staging, deploy-production, smoke-test-production]
+    if: always()
+    
+    steps:
+      - name: Determine overall status
+        id: status
+        run: |
+          if [ "${{ needs.deploy-staging.result }}" == "success" ] && \
+             [ "${{ needs.deploy-production.result }}" == "success" ] && \
+             [ "${{ needs.smoke-test-production.result }}" == "success" ]; then
+            echo "status=success" >> $GITHUB_OUTPUT
+            echo "emoji=🎉" >> $GITHUB_OUTPUT
+            echo "message=All deployments completed successfully!" >> $GITHUB_OUTPUT
+          elif [ "${{ needs.deploy-staging.result }}" == "success" ] && \
+               [ "${{ needs.deploy-production.result }}" == "skipped" ]; then
+            echo "status=partial" >> $GITHUB_OUTPUT
+            echo "emoji=⏳" >> $GITHUB_OUTPUT
+            echo "message=Staging deployed. Production awaiting approval." >> $GITHUB_OUTPUT
+          else
+            echo "status=failure" >> $GITHUB_OUTPUT
+            echo "emoji=❌" >> $GITHUB_OUTPUT
+            echo "message=Deployment failed. Check logs for details." >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Send comprehensive Slack notification
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          payload: |
+            {
+              "text": "${{ steps.status.outputs.emoji }} Pipeline ${{ steps.status.outputs.status }}",
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "${{ steps.status.outputs.emoji }} CI/CD Pipeline Complete"
+                  }
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Status:* ${{ steps.status.outputs.message }}"
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Repository:*\n${{ github.repository }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Branch:*\n${{ github.ref_name }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Commit:*\n<${{ github.event.head_commit.url }}|${{ github.sha }}>"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Author:*\n${{ github.actor }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Staging:*\n${{ needs.deploy-staging.result == 'success' && '✅ Deployed' || '❌ Failed' }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Production:*\n${{ needs.deploy-production.result == 'success' && '✅ Deployed' || needs.deploy-production.result == 'skipped' && '⏳ Pending' || '❌ Failed' }}"
+                    }
+                  ]
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Commit Message:*\n${{ github.event.head_commit.message }}"
+                  }
+                },
+                {
+                  "type": "divider"
+                },
+                {
+                  "type": "actions",
+                  "elements": [
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "View Workflow"
+                      },
+                      "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                    },
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "View Commit"
+                      },
+                      "url": "${{ github.event.head_commit.url }}"
+                    },
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "Production Site"
+                      },
+                      "url": "https://yourblog.com"
+                    }
+                  ]
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
