@@ -228,8 +228,7 @@ jobs:
     name: Build Docker Images
     runs-on: ubuntu-latest
     needs: [lint, test, e2e-test]
-    if: github.ref == 'refs/heads/main' && secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != ''
-    
+    if: github.ref == 'refs/heads/main'
     strategy:
       matrix:
         component:
@@ -317,7 +316,7 @@ jobs:
     name: Deploy to Staging
     runs-on: ubuntu-latest
     needs: security-scan
-    if: github.ref == 'refs/heads/main' && secrets.GH_PAT != ''
+    if: github.ref == 'refs/heads/main'
     
     steps:
       - name: Checkout GitOps repo
@@ -408,7 +407,7 @@ jobs:
     name: Send Notification
     runs-on: ubuntu-latest
     needs: [deploy-staging, deploy-production]
-    if: always() && secrets.SLACK_WEBHOOK != ''
+    if: always()
     
     steps:
       - name: Determine status
