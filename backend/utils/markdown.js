@@ -1,14 +1,8 @@
 import { marked } from 'marked';
-import markedKatex from 'marked-katex-extension';
+import katex from 'katex';
 import sanitizeHtml from 'sanitize-html';
 
-// KaTeX 확장 등록
-marked.use(markedKatex({
-  throwOnError: false,  // 에러 시 원본 텍스트 표시
-  output: 'html',
-}));
-
-// Marked 글로벌 설정
+// Marked 글로벌 설정 (KaTeX extension 제거 - 직접 처리)
 marked.setOptions({
   gfm: true,           // GitHub Flavored Markdown
   breaks: true,        // 개행을 <br> 태그로 변환
@@ -75,9 +69,6 @@ const SANITIZE_OPTIONS = {
 
 /**
  * 수학 수식 존재 여부 체크
- * - $...$ 또는 $$...$$ 패턴 감지
- * - 단순 $숫자 (가격 표시)는 제외
- * - 정규식 끝의 $ 제외
  * @param {string} markdown - 마크다운 원본 텍스트
  * @returns {boolean} 수식 존재 여부
  */
@@ -87,35 +78,18 @@ export function hasMathExpression(markdown) {
   }
 
   // 블록 수식: $$...$$
-  const blockMathPattern = /\$\$[\s\S]+?\$\$/;
-  if (blockMathPattern.test(markdown)) {
+  if (/\$\$[\s\S]+?\$\$/.test(markdown)) {
     return true;
   }
 
-  // 인라인 수식: $...$
-  // 제외 조건:
-  // 1. $숫자 형태 (가격: $100, $50.00)
-  // 2. 정규식 끝 $ (단독 $ 또는 문자열 끝)
-  // 3. 이스케이프된 \$
-
-  // LaTeX 명령어나 수식 문법이 포함된 인라인 수식 탐지
-  // 예: $a^2$, $\frac{1}{2}$, $x_i$, $\binom{n}{k}$
-  const inlineMathPattern = /(?<!\\)\$(?!\d+(?:[.,]\d+)?(?:\s|$))([^$\n]+?)(?<!\\)\$/;
-
-  if (inlineMathPattern.test(markdown)) {
-    // 추가 검증: LaTeX 문법이 실제로 있는지
-    const matches = markdown.match(/(?<!\\)\$([^$\n]+?)(?<!\\)\$/g);
-    if (matches) {
-      for (const match of matches) {
-        const content = match.slice(1, -1);
-        // LaTeX 문법 패턴: ^, _, \, {, }, frac, binom, sqrt, sum, int 등
-        if (/[\\^_{}]|\\[a-zA-Z]+/.test(content)) {
-          return true;
-        }
-        // 그리스 문자나 수학 기호
-        if (/[αβγδεζηθικλμνξπρστυφχψωΓΔΘΛΞΠΣΦΨΩ∑∏∫∂∇√∞≈≠≤≥±×÷]/.test(content)) {
-          return true;
-        }
+  // 인라인 수식: $...$ (가격 표시 $100 제외)
+  const inlineMatches = markdown.match(/(?<!\\)\$(?!\$)(.+?)(?<!\\)\$/g);
+  if (inlineMatches) {
+    for (const match of inlineMatches) {
+      const content = match.slice(1, -1);
+      // 단순 숫자(가격)가 아닌 경우 수식으로 판단
+      if (!/^\d+([.,]\d+)?$/.test(content)) {
+        return true;
       }
     }
   }
@@ -124,7 +98,27 @@ export function hasMathExpression(markdown) {
 }
 
 /**
+ * KaTeX로 수식 렌더링
+ * @param {string} latex - LaTeX 수식
+ * @param {boolean} displayMode - 블록 모드 여부
+ * @returns {string} 렌더링된 HTML 또는 에러 시 원본
+ */
+function renderKatex(latex, displayMode = false) {
+  try {
+    return katex.renderToString(latex, {
+      displayMode,
+      throwOnError: false,
+      output: 'html',
+    });
+  } catch {
+    // 에러 시 원본 텍스트 반환
+    return displayMode ? `$$${latex}$$` : `$${latex}$`;
+  }
+}
+
+/**
  * 마크다운 텍스트를 안전한 HTML로 변환
+ * 수식을 먼저 처리하여 마크다운 파싱과의 충돌 방지
  * @param {string} markdown - 마크다운 원본 텍스트
  * @returns {string} XSS 필터링된 HTML
  */
@@ -133,11 +127,41 @@ export function renderMarkdown(markdown) {
     return '';
   }
 
-  // 1. 마크다운 → HTML 파싱 (KaTeX 포함)
-  const rawHtml = marked.parse(markdown);
+  // 수식 저장용 맵
+  const mathMap = new Map();
+  let mathIndex = 0;
 
-  // 2. XSS 방지를 위한 HTML 정제
-  const cleanHtml = sanitizeHtml(rawHtml, SANITIZE_OPTIONS);
+  // 1. 블록 수식 ($$...$$) 먼저 추출 및 렌더링
+  let processed = markdown.replace(/\$\$([\s\S]+?)\$\$/g, (match, latex) => {
+    const placeholder = `%%MATH_BLOCK_${mathIndex}%%`;
+    mathMap.set(placeholder, renderKatex(latex.trim(), true));
+    mathIndex++;
+    return placeholder;
+  });
+
+  // 2. 인라인 수식 ($...$) 추출 및 렌더링
+  // 가격 표시 ($100) 제외
+  processed = processed.replace(/(?<!\\)\$(?!\$)(.+?)(?<!\\)\$/g, (match, latex) => {
+    // 단순 숫자는 수식이 아님
+    if (/^\d+([.,]\d+)?$/.test(latex)) {
+      return match;
+    }
+    const placeholder = `%%MATH_INLINE_${mathIndex}%%`;
+    mathMap.set(placeholder, renderKatex(latex.trim(), false));
+    mathIndex++;
+    return placeholder;
+  });
+
+  // 3. 마크다운 → HTML 파싱
+  let html = marked.parse(processed);
+
+  // 4. placeholder를 렌더링된 수식으로 복원
+  for (const [placeholder, rendered] of mathMap) {
+    html = html.replace(placeholder, rendered);
+  }
+
+  // 5. XSS 방지를 위한 HTML 정제
+  const cleanHtml = sanitizeHtml(html, SANITIZE_OPTIONS);
 
   return cleanHtml;
 }
