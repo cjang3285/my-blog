@@ -1,5 +1,5 @@
 import pool from '../config/db.js';
-import { renderMarkdown } from '../utils/markdown.js';
+import { renderMarkdown, hasMathExpression } from '../utils/markdown.js';
 
 // Get all posts (ordered by date descending)
 export const getAllPosts = async () => {
@@ -65,12 +65,13 @@ export const createPost = async (postData) => {
     // 마크다운을 HTML로 변환
     const content_markdown = content;
     const content_html = renderMarkdown(content);
+    const has_math = hasMathExpression(content);
 
     const result = await pool.query(
-      `INSERT INTO posts (title, slug, excerpt, content_markdown, content_html, date, tags, featured)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `INSERT INTO posts (title, slug, excerpt, content_markdown, content_html, date, tags, featured, has_math)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING *`,
-      [title, slug, excerpt, content_markdown, content_html, date, tags, featured]
+      [title, slug, excerpt, content_markdown, content_html, date, tags, featured, has_math]
     );
     return result.rows[0];
   } catch (error) {
@@ -109,6 +110,9 @@ export const updatePost = async (id, postData) => {
       paramCount++;
       updates.push(`content_html = $${paramCount}`);
       values.push(renderMarkdown(content));
+      paramCount++;
+      updates.push(`has_math = $${paramCount}`);
+      values.push(hasMathExpression(content));
       paramCount++;
     }
     if (tags !== undefined) {
