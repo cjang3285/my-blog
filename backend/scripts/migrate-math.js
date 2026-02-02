@@ -16,7 +16,7 @@ async function migrateMath() {
   try {
     // 모든 포스트 조회
     const result = await pool.query(
-      'SELECT id, title, content_markdown FROM posts ORDER BY id'
+      'SELECT id, title, content_markdown FROM blog.posts ORDER BY id'
     );
     const posts = result.rows;
 
@@ -41,7 +41,7 @@ async function migrateMath() {
 
       // 업데이트
       await pool.query(
-        'UPDATE posts SET content_html = $1, has_math = $2 WHERE id = $3',
+        'UPDATE blog.posts SET content_html = $1, has_math = $2 WHERE id = $3',
         [content_html, has_math, id]
       );
 
