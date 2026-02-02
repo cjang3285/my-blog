@@ -8,7 +8,6 @@ import statusRoutes from './routes/statusRoutes.js';
 import releaseRoutes from './routes/releaseRoutes.js';
 import conferenceRoutes from './routes/conferenceRoutes.js';
 import postRoutes from './routes/postRoutes.js';
-import kanbanRoutes from './routes/kanbanRoutes.js';
 import projectRoutes from './routes/projectRoutes.js';
 import healthRoutes from './routes/healthRoutes.js';
 import authRoutes from './routes/authRoutes.js';
@@ -66,7 +65,6 @@ app.use('/api/status', statusRoutes);
 app.use('/api/releases', releaseRoutes);
 app.use('/api/conferences', conferenceRoutes);
 app.use('/api/posts', postRoutes);
-app.use('/api/kanban', kanbanRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api', healthRoutes);
 
