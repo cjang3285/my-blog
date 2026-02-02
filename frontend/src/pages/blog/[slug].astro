@@ -86,6 +86,17 @@ const API_URL = import.meta.env.PUBLIC_API_URL || '';
   let currentPost = null;
   let isAuthenticated = false;
 
+  // KaTeX CSS 동적 로드
+  function loadKatexCSS() {
+    if (document.getElementById('katex-css')) return;
+    const link = document.createElement('link');
+    link.id = 'katex-css';
+    link.rel = 'stylesheet';
+    link.href = 'https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css';
+    link.crossOrigin = 'anonymous';
+    document.head.appendChild(link);
+  }
+
   // Check authentication status
   async function checkAuth() {
     try {
@@ -126,6 +137,11 @@ const API_URL = import.meta.env.PUBLIC_API_URL || '';
 
       const post = await response.json();
       currentPost = post;
+
+      // 수학 수식이 있으면 KaTeX CSS 로드
+      if (post.has_math) {
+        loadKatexCSS();
+      }
 
       // Hide loading
       if (loading) loading.remove();
