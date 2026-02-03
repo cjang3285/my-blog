@@ -33,8 +33,8 @@ try {
 	postsError = error.message;
 }
 
-// Fetch completed projects (완료된 프로젝트만)
-let completedProjects = [];
+// Fetch recent projects (최신 프로젝트 3개)
+let recentProjects = [];
 let projectsError = null;
 try {
 	const url = `${API_URL}/api/projects`;
@@ -44,11 +44,8 @@ try {
 	if (response.ok) {
 		const allProjects = await response.json();
 		console.log('[INDEX] Fetched projects count:', allProjects.length);
-		// kanban_status가 'done'이고 유효한 데이터를 가진 프로젝트만 필터링
-		completedProjects = allProjects
-			.filter(p => p.kanban_status === 'done' && p.title && p.description)
-			.slice(0, 6); // 최대 6개
-		console.log('[INDEX] Completed projects count:', completedProjects.length);
+		// 최신 3개만 표시 (이미 created_at DESC 정렬됨)
+		recentProjects = allProjects.slice(0, 3);
 	} else {
 		projectsError = `HTTP ${response.status}`;
 	}
@@ -90,17 +87,17 @@ try {
 		</div>
 	</section>
 
-	<!-- Featured Projects -->
+	<!-- Recent Projects -->
 	<section class="py-12">
 		<div class="flex justify-between items-center mb-8">
-			<h2 class="text-3xl font-bold">완료된 프로젝트</h2>
+			<h2 class="text-3xl font-bold">최근 프로젝트</h2>
 			<a href="/projects" class="text-blue-600 dark:text-blue-400 hover:underline font-medium">
 				전체 보기 →
 			</a>
 		</div>
 		<div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-			{completedProjects.length > 0 ? (
-				completedProjects.map(project => (
+			{recentProjects.length > 0 ? (
+				recentProjects.map(project => (
 					<ProjectCard
 						title={project.title}
 						description={project.description}
@@ -113,7 +110,7 @@ try {
 				<p class="text-gray-500 dark:text-gray-400 text-center py-12 col-span-3">
 					{projectsError
 						? `에러: ${projectsError} (API_URL: ${API_URL || '미설정'})`
-						: '완료된 프로젝트가 없습니다.'}
+						: '프로젝트가 없습니다.'}
 				</p>
 			)}
 		</div>
