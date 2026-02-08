@@ -10,48 +10,39 @@ import ProjectCard from '../components/ProjectCard.astro';
 const API_URL = import.meta.env.SSR
   ? 'http://localhost:3000'
   : (import.meta.env.PUBLIC_API_URL || '');
-console.log('[INDEX] SSR:', import.meta.env.SSR, 'API_URL:', API_URL);
 
 // Fetch latest blog posts (최신 글 3개)
 let featuredPosts = [];
 let postsError = null;
 try {
-	const url = `${API_URL}/api/posts`;
-	console.log('[INDEX] Fetching posts from:', url);
-	const response = await fetch(url);
-	console.log('[INDEX] Posts response status:', response.status);
+	const response = await fetch(`${API_URL}/api/posts`);
 	if (response.ok) {
 		const allPosts = await response.json();
-		console.log('[INDEX] Fetched posts count:', allPosts.length);
-		// 최신 3개만 표시
 		featuredPosts = allPosts.slice(0, 3);
 	} else {
 		postsError = `HTTP ${response.status}`;
+		console.error(`[SSR:INDEX] Posts fetch failed: HTTP ${response.status} from ${API_URL}/api/posts`);
 	}
 } catch (error) {
-	console.error('[INDEX] Failed to fetch posts:', error);
 	postsError = error.message;
+	console.error(`[SSR:INDEX] Posts fetch error: ${error.code || error.message} - ${API_URL}/api/posts`);
 }
 
 // Fetch recent projects (최신 프로젝트 3개)
 let recentProjects = [];
 let projectsError = null;
 try {
-	const url = `${API_URL}/api/projects`;
-	console.log('[INDEX] Fetching projects from:', url);
-	const response = await fetch(url);
-	console.log('[INDEX] Projects response status:', response.status);
+	const response = await fetch(`${API_URL}/api/projects`);
 	if (response.ok) {
 		const allProjects = await response.json();
-		console.log('[INDEX] Fetched projects count:', allProjects.length);
-		// 최신 3개만 표시 (이미 created_at DESC 정렬됨)
 		recentProjects = allProjects.slice(0, 3);
 	} else {
 		projectsError = `HTTP ${response.status}`;
+		console.error(`[SSR:INDEX] Projects fetch failed: HTTP ${response.status} from ${API_URL}/api/projects`);
 	}
 } catch (error) {
-	console.error('[INDEX] Failed to fetch projects:', error);
 	projectsError = error.message;
+	console.error(`[SSR:INDEX] Projects fetch error: ${error.code || error.message} - ${API_URL}/api/projects`);
 }
 ---
 

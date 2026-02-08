@@ -34,6 +34,7 @@ export const autoAuth = (req, res, next) => {
   if (isTrustedIp(clientIp)) {
     req.session.isAuthenticated = true;
     req.session.autoAuthenticated = true; // Mark as auto-authenticated
+    console.log(`[AUTH] Auto-authenticated trusted IP: ${clientIp}`);
   }
 
   next();
@@ -44,6 +45,8 @@ export const requireAuth = (req, res, next) => {
   if (req.session && req.session.isAuthenticated) {
     return next();
   }
+  const clientIp = getClientIp(req);
+  console.warn(`[AUTH] Unauthorized access attempt: ${req.method} ${req.originalUrl} - ${clientIp}`);
   return res.status(401).json({ error: 'Unauthorized' });
 };
 

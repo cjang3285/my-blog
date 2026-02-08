@@ -6,7 +6,6 @@ import cors from 'cors';
 import { autoAuth } from './middleware/auth.js';
 import statusRoutes from './routes/statusRoutes.js';
 import releaseRoutes from './routes/releaseRoutes.js';
-import conferenceRoutes from './routes/conferenceRoutes.js';
 import postRoutes from './routes/postRoutes.js';
 import projectRoutes from './routes/projectRoutes.js';
 import healthRoutes from './routes/healthRoutes.js';
@@ -32,6 +31,7 @@ app.use(cors({
     if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
+      console.warn(`[CORS] Blocked origin: ${origin}`);
       callback(new Error('Not allowed by CORS'));
     }
   },
@@ -42,6 +42,22 @@ app.use(express.json());
 
 // Trust proxy (nginx 리버스 프록시 사용 시 필요)
 app.set('trust proxy', 1);
+
+// Request logging middleware
+app.use((req, res, next) => {
+  const start = Date.now();
+  const { method, originalUrl } = req;
+  const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket.remoteAddress;
+
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    const { statusCode } = res;
+    const level = statusCode >= 500 ? 'ERROR' : statusCode >= 400 ? 'WARN' : 'INFO';
+    console.log(`[${level}] ${method} ${originalUrl} ${statusCode} ${duration}ms - ${ip}`);
+  });
+
+  next();
+});
 
 // Session middleware
 app.use(session({
@@ -63,11 +79,39 @@ app.use(autoAuth);
 app.use('/api/auth', authRoutes);
 app.use('/api/status', statusRoutes);
 app.use('/api/releases', releaseRoutes);
-app.use('/api/conferences', conferenceRoutes);
 app.use('/api/posts', postRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api', healthRoutes);
 
+// Global error handling middleware
+app.use((err, req, res, next) => {
+  const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket.remoteAddress;
+  console.error(`[ERROR] Unhandled error on ${req.method} ${req.originalUrl} - ${ip}:`, err.message);
+  console.error(err.stack);
+  res.status(500).json({ error: 'Internal server error' });
+});
+
+// Process-level error handlers
+process.on('uncaughtException', (err) => {
+  console.error('[FATAL] Uncaught Exception:', err.message);
+  console.error(err.stack);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[FATAL] Unhandled Rejection:', reason);
+});
+
+process.on('SIGTERM', () => {
+  console.log('[PROCESS] SIGTERM received, shutting down gracefully...');
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  console.log('[PROCESS] SIGINT received, shutting down gracefully...');
+  process.exit(0);
+});
+
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`[PROCESS] Server running on port ${PORT} (${process.env.NODE_ENV || 'development'})`);
 });

@@ -73,6 +73,7 @@ export const createPost = async (postData) => {
        RETURNING *`,
       [title, slug, excerpt, content_markdown, content_html, date, tags, featured, has_math]
     );
+    console.log(`[POST] Created: slug=${slug}, title="${title}"`);
     return result.rows[0];
   } catch (error) {
     console.error('Error in createPost service:', error);
@@ -134,6 +135,9 @@ export const updatePost = async (id, postData) => {
     const query = `UPDATE posts SET ${updates.join(', ')} WHERE id = $${paramCount} RETURNING *`;
 
     const result = await pool.query(query, values);
+    if (result.rows[0]) {
+      console.log(`[POST] Updated: id=${id}, fields=[${updates.map(u => u.split(' =')[0]).join(', ')}]`);
+    }
     return result.rows[0] || null;
   } catch (error) {
     console.error('Error in updatePost service:', error);
@@ -148,6 +152,9 @@ export const deletePost = async (id) => {
       'DELETE FROM posts WHERE id = $1 RETURNING *',
       [id]
     );
+    if (result.rows[0]) {
+      console.log(`[POST] Deleted: id=${id}, slug=${result.rows[0].slug}`);
+    }
     return result.rows[0] || null;
   } catch (error) {
     console.error('Error in deletePost service:', error);

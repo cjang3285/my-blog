@@ -15,7 +15,6 @@ Express.js 기반의 블로그 백엔드 API 서버입니다.
 - 📝 블로그 포스트 CRUD API
 - 📊 프로젝트 관리 API
 - 🎯 칸반 보드 API
-- 🎤 컨퍼런스 정보 API
 - 🚀 릴리즈 정보 API
 - ❤️ 상태 및 헬스체크 API
 
@@ -76,7 +75,6 @@ pm2 start ecosystem.config.js --env production
 | `DELETE /api/posts/:id` | 포스트 삭제 |
 | `GET /api/projects` | 프로젝트 목록 |
 | `GET /api/kanban` | 칸반 보드 데이터 |
-| `GET /api/conferences` | 컨퍼런스 정보 |
 | `GET /api/releases` | 릴리즈 정보 |
 | `GET /api/status` | 현재 상태 |
 

@@ -44,6 +44,7 @@ export const createProject = async (projectData) => {
       [title, description, content_markdown, content_html, stack, github_url]
     );
 
+    console.log(`[PROJECT] Created: id=${result.rows[0].id}, title="${title}"`);
     return result.rows[0];
   } catch (error) {
     console.error('Error in createProject service:', error);
@@ -98,6 +99,9 @@ export const updateProject = async (id, projectData) => {
     const query = `UPDATE projects SET ${updates.join(', ')} WHERE id = $${paramCount} RETURNING *`;
 
     const result = await pool.query(query, values);
+    if (result.rows[0]) {
+      console.log(`[PROJECT] Updated: id=${id}, fields=[${updates.map(u => u.split(' =')[0]).join(', ')}]`);
+    }
     return result.rows[0] || null;
   } catch (error) {
     console.error('Error in updateProject service:', error);
@@ -112,6 +116,9 @@ export const deleteProject = async (id) => {
       'DELETE FROM projects WHERE id = $1 RETURNING *',
       [id]
     );
+    if (result.rows[0]) {
+      console.log(`[PROJECT] Deleted: id=${id}, title="${result.rows[0].title}"`);
+    }
     return result.rows[0] || null;
   } catch (error) {
     console.error('Error in deleteProject service:', error);

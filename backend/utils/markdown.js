@@ -110,8 +110,8 @@ function renderKatex(latex, displayMode = false) {
       throwOnError: false,
       output: 'html',
     });
-  } catch {
-    // 에러 시 원본 텍스트 반환
+  } catch (error) {
+    console.warn(`[MARKDOWN] KaTeX render failed (${displayMode ? 'block' : 'inline'}): "${latex.substring(0, 80)}" - ${error.message}`);
     return displayMode ? `$$${latex}$$` : `$${latex}$`;
   }
 }
