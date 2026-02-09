@@ -273,8 +273,14 @@ const API_URL = import.meta.env.PUBLIC_API_URL || '';
       });
 
       if (response.ok) {
+        const updatedPost = await response.json();
         closeModal();
-        await loadPost(); // Reload post to show updates
+        // slug가 변경되었으면 새 URL로 이동
+        if (updatedPost.slug && updatedPost.slug !== slug) {
+          window.location.href = `/blog/${updatedPost.slug}`;
+        } else {
+          await loadPost();
+        }
       } else {
         throw new Error('Failed to update post');
       }
