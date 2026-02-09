@@ -1,70 +1,70 @@
 ---
 import Layout from '../layouts/Layout.astro';
 
-const pageTitle = 'Posts - CS {["장찬욱"]};';
+const pageTitle = '글 - 장찬욱';
 ---
 
 <Layout title={pageTitle} description="모든 블로그 글 보기">
-	<div class="max-w-3xl">
-		<div class="flex justify-between items-center mb-4">
-			<h1 class="text-4xl font-bold">Posts</h1>
-			<button id="add-post-btn" style="display: none;" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded font-medium">
+	<div>
+		<div class="flex justify-between items-center mb-3">
+			<h1 class="text-2xl font-semibold text-warm-100 tracking-tight">글</h1>
+			<button id="add-post-btn" style="display: none;" class="px-3 py-1.5 bg-accent hover:bg-accent-hover text-warm-950 rounded text-sm font-medium transition-colors duration-300">
 				+ 새 글 작성
 			</button>
 		</div>
-		<p class="text-xl text-gray-400 mb-12">
+		<p class="text-warm-500 text-sm mb-10">
 			배운 것들을 기록하고 공유합니다.
 		</p>
 
-		<div id="posts-container" class="grid gap-6">
+		<div id="posts-container">
 			<!-- Posts will be loaded here -->
 		</div>
 	</div>
 
 	<!-- Add/Edit Post Modal -->
-	<div id="post-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 overflow-y-auto">
-		<div class="bg-gray-800 p-6 rounded-lg w-full max-w-2xl m-4">
-			<h3 id="modal-title" class="text-2xl font-semibold mb-4">새 글 작성</h3>
+	<div id="post-modal" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center z-50 overflow-y-auto backdrop-blur-sm">
+		<div class="bg-warm-900 border border-warm-800 p-6 rounded-lg w-full max-w-2xl m-4">
+			<h3 id="modal-title" class="text-xl font-semibold text-warm-100 mb-4">새 글 작성</h3>
 			<form id="post-form">
 				<input type="hidden" id="post-id" />
 				<div class="mb-4">
-					<label class="block text-gray-300 mb-2">제목 *</label>
+					<label class="block text-warm-400 text-sm mb-2">제목 *</label>
 					<input
 						type="text"
 						id="post-title"
 						required
-						class="w-full px-4 py-2 bg-gray-700 text-gray-100 rounded border border-gray-600 focus:border-blue-400 outline-none"
+						class="w-full px-3 py-2 bg-warm-950 text-warm-100 rounded border border-warm-700 focus:border-accent outline-none transition-colors text-sm"
 					/>
 				</div>
 				<div class="mb-4">
-					<label class="block text-gray-300 mb-2">요약 *</label>
+					<label class="block text-warm-400 text-sm mb-2">요약 *</label>
 					<textarea
 						id="post-excerpt"
 						required
 						rows="2"
-						class="w-full px-4 py-2 bg-gray-700 text-gray-100 rounded border border-gray-600 focus:border-blue-400 outline-none"
+						class="w-full px-3 py-2 bg-warm-950 text-warm-100 rounded border border-warm-700 focus:border-accent outline-none transition-colors text-sm"
 					></textarea>
 				</div>
 				<div class="mb-4">
-					<label class="block text-gray-300 mb-2">본문 *</label>
+					<label class="block text-warm-400 text-sm mb-2">본문 *</label>
 					<textarea
 						id="post-content"
 						required
 						rows="8"
-						class="w-full px-4 py-2 bg-gray-700 text-gray-100 rounded border border-gray-600 focus:border-blue-400 outline-none"
+						class="w-full px-3 py-2 bg-warm-950 text-warm-100 rounded border border-warm-700 focus:border-accent outline-none transition-colors text-sm"
 					></textarea>
 				</div>
 				<div class="mb-4">
-					<label class="block text-gray-300 mb-2">태그 (쉼표로 구분)</label>
+					<label class="block text-warm-400 text-sm mb-2">태그 (쉼표로 구분)</label>
 					<input
 						type="text"
 						id="post-tags"
 						placeholder="예: JavaScript, React, Web"
-						class="w-full px-4 py-2 bg-gray-700 text-gray-100 rounded border border-gray-600 focus:border-blue-400 outline-none"
+						class="w-full px-3 py-2 bg-warm-950 text-warm-100 rounded border border-warm-700 focus:border-accent outline-none transition-colors text-sm"
 					/>
 				</div>
 				<div class="mb-4">
-					<label class="flex items-center text-gray-300">
+					<label class="flex items-center text-warm-400 text-sm">
 						<input type="checkbox" id="post-featured" class="mr-2" />
 						Featured (메인 페이지에 표시)
 					</label>
@@ -73,13 +73,13 @@ const pageTitle = 'Posts - CS {["장찬욱"]};';
 					<button
 						type="button"
 						id="cancel-btn"
-						class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded"
+						class="px-3 py-1.5 bg-warm-800 hover:bg-warm-700 rounded text-sm text-warm-300 transition-colors"
 					>
 						취소
 					</button>
 					<button
 						type="submit"
-						class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded"
+						class="px-3 py-1.5 bg-accent hover:bg-accent-hover text-warm-950 rounded text-sm font-medium transition-colors"
 					>
 						저장
 					</button>
@@ -137,29 +137,29 @@ const pageTitle = 'Posts - CS {["장찬욱"]};';
 			if (posts.length === 0) {
 				container.innerHTML = `
 					<div class="text-center py-20">
-						<p class="text-gray-400 text-lg mb-4">아직 글이 없습니다.</p>
-						<p class="text-gray-500 text-sm">새 글을 작성해보세요!</p>
+						<p class="text-warm-500 text-sm mb-2">아직 글이 없습니다.</p>
+						<p class="text-warm-600 text-xs">새 글을 작성해보세요!</p>
 					</div>
 				`;
 				return;
 			}
 
 			container.innerHTML = posts.map(post => `
-				<article class="group p-6 rounded-xl border border-gray-800 hover:border-gray-700 transition-colors">
-					<div class="flex items-center gap-2 text-sm text-gray-400 mb-3">
+				<article class="group py-6 border-b border-warm-800/50">
+					<div class="flex items-center gap-2 text-sm text-warm-500 mb-2">
 						<time>${new Date(post.date).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}</time>
 						${post.tags && post.tags.length > 0 ? `
-							<span>•</span>
-							<div class="flex gap-2">
-								${post.tags.map(tag => `<span class="text-blue-400">#${tag}</span>`).join('')}
+							<span class="text-warm-700">/</span>
+							<div class="flex gap-1.5">
+								${post.tags.map(tag => `<span class="text-warm-500">${tag}</span>`).join('')}
 							</div>
 						` : ''}
-						${post.featured ? '<span class="ml-auto px-2 py-1 bg-blue-600 text-xs rounded">Featured</span>' : ''}
+						${post.featured ? '<span class="ml-auto px-2 py-0.5 bg-accent/20 text-accent text-xs rounded">Featured</span>' : ''}
 					</div>
-					<h3 class="text-2xl font-semibold mb-2">
-						<a href="/blog/${post.slug}" class="hover:text-blue-400 transition-colors">${post.title}</a>
+					<h3 class="text-lg font-medium text-warm-100 mb-1.5">
+						<a href="/blog/${post.slug}" class="hover:text-accent transition-colors duration-300">${post.title}</a>
 					</h3>
-					<p class="text-gray-400">${post.excerpt}</p>
+					<p class="text-warm-400 text-sm">${post.excerpt}</p>
 				</article>
 			`).join('');
 		} catch (error) {
@@ -168,9 +168,9 @@ const pageTitle = 'Posts - CS {["장찬욱"]};';
 			if (container) {
 				container.innerHTML = `
 					<div class="text-center py-20">
-						<p class="text-red-400 text-lg mb-4">글을 불러오는데 실패했습니다.</p>
-						<p class="text-gray-500 text-sm">에러: ${error.message}</p>
-						<p class="text-gray-500 text-sm">API URL: ${API_URL || '미설정'}</p>
+						<p class="text-red-400 text-sm mb-2">글을 불러오는데 실패했습니다.</p>
+						<p class="text-warm-600 text-xs">에러: ${error.message}</p>
+						<p class="text-warm-600 text-xs">API URL: ${API_URL || '미설정'}</p>
 					</div>
 				`;
 			}

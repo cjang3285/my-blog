@@ -9,23 +9,21 @@ const res = await fetch(`${API_URL}/api/releases`);
 const releases: string[] = await res.json();
 ---
 
-<html>
-  <body class="p-8 bg-gray-100">
-    <h1 class="text-3xl font-bold mb-6">Releases</h1>
+<Layout title="Releases - 장찬욱" description="릴리스 파일 목록">
+  <h1 class="text-2xl font-semibold text-warm-100 mb-8 tracking-tight">Releases</h1>
 
-    <div class="bg-white shadow rounded p-6">
-      <ul class="space-y-3">
-        {releases.map(file => (
-          <li>
-            <a
-              href={`${API_URL}/api/releases/download/${file}`}
-              class="text-blue-600 hover:underline"
-            >
-              {file}
-            </a>
-          </li>
-        ))}
-      </ul>
-    </div>
-  </body>
-</html>
+  <div class="p-5 rounded-lg border border-warm-800/50 bg-warm-900/30">
+    <ul class="space-y-3">
+      {releases.map(file => (
+        <li>
+          <a
+            href={`${API_URL}/api/releases/download/${file}`}
+            class="text-sm text-warm-300 hover:text-accent transition-colors duration-300"
+          >
+            {file}
+          </a>
+        </li>
+      ))}
+    </ul>
+  </div>
+</Layout>

@@ -6,7 +6,7 @@ interface Props {
 	description?: string;
 }
 
-const { title = 'CS {["장찬욱"]};', description = '개발자의 학습과 성장 기록' } = Astro.props;
+const { title = '장찬욱', description = '개발자의 학습과 성장 기록' } = Astro.props;
 ---
 <!doctype html>
 <html lang="ko" class="dark">
@@ -18,27 +18,27 @@ const { title = 'CS {["장찬욱"]};', description = '개발자의 학습과 성
 		<meta name="generator" content={Astro.generator} />
 		<title>{title}</title>
 	</head>
-	<body class="bg-gray-950 text-gray-100">
-		<nav class="border-b border-gray-800">
-			<div class="max-w-4xl mx-auto px-6 py-4 flex justify-between items-center">
-				<a href="/" class="text-xl font-mono font-semibold hover:text-blue-400 transition-colors">
-					CS &#123;["장찬욱"]&#125;;
+	<body class="bg-warm-950 text-warm-200">
+		<nav class="border-b border-warm-800/60">
+			<div class="max-w-2xl mx-auto px-6 py-5 flex justify-between items-center">
+				<a href="/" class="text-warm-100 font-semibold tracking-tight hover:text-accent transition-colors duration-300">
+					장찬욱
 				</a>
-				<div class="flex gap-6 items-center">
-					<a href="/blog" class="hover:text-blue-400 transition-colors">Posts</a>
-					<a href="/projects" class="hover:text-blue-400 transition-colors">Projects</a>
-					<a href="/about" class="hover:text-blue-400 transition-colors">About</a>
+				<div class="flex gap-7 text-sm text-warm-400">
+					<a href="/blog" class="hover:text-warm-100 transition-colors duration-300">글</a>
+					<a href="/projects" class="hover:text-warm-100 transition-colors duration-300">프로젝트</a>
+					<a href="/about" class="hover:text-warm-100 transition-colors duration-300">소개</a>
 				</div>
 			</div>
 		</nav>
 
-		<main class="max-w-4xl mx-auto px-6 py-12">
+		<main class="max-w-2xl mx-auto px-6 py-16">
 			<slot />
 		</main>
 
-		<footer class="border-t border-gray-800 mt-20">
-			<div class="max-w-4xl mx-auto px-6 py-8 text-center text-sm text-gray-400">
-				<p>&copy; 2025 CS &#123;["장찬욱"]&#125;;. Built with Astro & Express.</p>
+		<footer class="border-t border-warm-800/40">
+			<div class="max-w-2xl mx-auto px-6 py-10 text-center text-sm text-warm-600">
+				<p>&copy; 2025 장찬욱</p>
 			</div>
 		</footer>
 	</body>

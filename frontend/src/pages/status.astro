@@ -9,25 +9,23 @@ const res = await fetch(`${API_URL}/api/status`);
 const status = await res.json();
 ---
 
-<html>
-  <body class="p-8 bg-gray-100">
-    <h1 class="text-3xl font-bold mb-6">Server Status</h1>
+<Layout title="Status - 장찬욱" description="서버 상태">
+  <h1 class="text-2xl font-semibold text-warm-100 mb-8 tracking-tight">Server Status</h1>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-      <div class="bg-white shadow rounded p-6">
-        <h2 class="text-xl font-semibold mb-2">CPU</h2>
-        <p class="text-gray-700">{status.cpu}</p>
-      </div>
-
-      <div class="bg-white shadow rounded p-6">
-        <h2 class="text-xl font-semibold mb-2">Memory</h2>
-        <p class="text-gray-700">{status.memory}</p>
-      </div>
-
-      <div class="bg-white shadow rounded p-6">
-        <h2 class="text-xl font-semibold mb-2">Uptime</h2>
-        <p class="text-gray-700">{status.uptime}</p>
-      </div>
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div class="p-5 rounded-lg border border-warm-800/50 bg-warm-900/30">
+      <h2 class="text-sm font-medium text-warm-500 uppercase tracking-wider mb-2">CPU</h2>
+      <p class="text-warm-200">{status.cpu}</p>
     </div>
-  </body>
-</html>
+
+    <div class="p-5 rounded-lg border border-warm-800/50 bg-warm-900/30">
+      <h2 class="text-sm font-medium text-warm-500 uppercase tracking-wider mb-2">Memory</h2>
+      <p class="text-warm-200">{status.memory}</p>
+    </div>
+
+    <div class="p-5 rounded-lg border border-warm-800/50 bg-warm-900/30">
+      <h2 class="text-sm font-medium text-warm-500 uppercase tracking-wider mb-2">Uptime</h2>
+      <p class="text-warm-200">{status.uptime}</p>
+    </div>
+  </div>
+</Layout>
