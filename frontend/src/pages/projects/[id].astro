@@ -41,7 +41,7 @@ const API_URL = import.meta.env.PUBLIC_API_URL || '';
         <div class="mb-4">
           <label class="block text-warm-400 text-sm mb-2">상세 본문 (상세 페이지에 표시)</label>
           <textarea
-            id="project-content"
+            id="project-content-input"
             rows="6"
             placeholder="프로젝트의 목적, 구현 내용, 배운 점 등을 자세히 작성해주세요"
             class="w-full px-3 py-2 bg-warm-950 text-warm-100 rounded border border-warm-700 focus:border-accent outline-none transition-colors text-sm"
@@ -241,7 +241,7 @@ const API_URL = import.meta.env.PUBLIC_API_URL || '';
 
     (document.getElementById('project-title')).value = currentProject.title;
     (document.getElementById('project-description')).value = currentProject.description;
-    (document.getElementById('project-content')).value = currentProject.content_markdown || currentProject.content || '';
+    (document.getElementById('project-content-input')).value = currentProject.content_markdown || currentProject.content || '';
     (document.getElementById('project-stack')).value = currentProject.stack ? currentProject.stack.join(', ') : '';
     (document.getElementById('project-github_url')).value = currentProject.github_url || '';
 
@@ -282,7 +282,7 @@ const API_URL = import.meta.env.PUBLIC_API_URL || '';
 
     const title = (document.getElementById('project-title')).value;
     const description = (document.getElementById('project-description')).value;
-    const content = (document.getElementById('project-content')).value;
+    const content = (document.getElementById('project-content-input')).value;
     const stackInput = (document.getElementById('project-stack')).value;
     const github_url = (document.getElementById('project-github_url')).value;
 
