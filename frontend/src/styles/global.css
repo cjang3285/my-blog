@@ -1,2 +1,78 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
+
+@font-face {
+  font-family: 'Pretendard';
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+  src: url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css');
+}
+
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css');
+
+@theme {
+  --font-sans: 'Pretendard Variable', 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --color-warm-950: #0f0e0d;
+  --color-warm-900: #1c1b19;
+  --color-warm-800: #2a2926;
+  --color-warm-700: #3d3b37;
+  --color-warm-600: #5c5a54;
+  --color-warm-500: #9a978f;
+  --color-warm-400: #b5b2ab;
+  --color-warm-300: #d2d0c9;
+  --color-warm-200: #e8e6e1;
+  --color-warm-100: #f5f3ef;
+  --color-warm-50: #f8f7f4;
+  --color-accent: #c8956c;
+  --color-accent-hover: #b8845b;
+  --color-accent-muted: #a07850;
+  --color-link: #d4a574;
+  --color-link-hover: #e0b888;
+}
+
+body {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background-color: rgba(200, 149, 108, 0.3);
+  color: var(--color-warm-100);
+}
+
+/* Prose overrides for blog content */
+.prose {
+  --tw-prose-invert-body: var(--color-warm-300);
+  --tw-prose-invert-headings: var(--color-warm-100);
+  --tw-prose-invert-links: var(--color-link);
+  --tw-prose-invert-bold: var(--color-warm-100);
+  --tw-prose-invert-counters: var(--color-warm-400);
+  --tw-prose-invert-bullets: var(--color-warm-600);
+  --tw-prose-invert-hr: var(--color-warm-800);
+  --tw-prose-invert-quote-borders: var(--color-accent-muted);
+  --tw-prose-invert-code: var(--color-warm-200);
+  --tw-prose-invert-pre-bg: var(--color-warm-900);
+  --tw-prose-invert-pre-code: var(--color-warm-300);
+  --tw-prose-invert-th-borders: var(--color-warm-700);
+  --tw-prose-invert-td-borders: var(--color-warm-800);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-warm-950);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-warm-700);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-warm-600);
+}

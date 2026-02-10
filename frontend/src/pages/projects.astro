@@ -1,91 +1,91 @@
 ---
 import Layout from '../layouts/Layout.astro';
 
-const pageTitle = 'Projects - CS {["장찬욱"]};';
+const pageTitle = '프로젝트 - 장찬욱';
 ---
 
 <Layout title={pageTitle} description="진행한 프로젝트들을 소개합니다">
 	<div>
-		<div class="flex justify-between items-center mb-4">
-			<h1 class="text-4xl font-bold">Projects</h1>
-			<button id="add-project-btn" style="display: none;" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded font-medium">
+		<div class="flex justify-between items-center mb-3">
+			<h1 class="text-2xl font-semibold text-warm-100 tracking-tight">프로젝트</h1>
+			<button id="add-project-btn" style="display: none;" class="px-3 py-1.5 bg-accent hover:bg-accent-hover text-warm-950 rounded text-sm font-medium transition-colors duration-300">
 				+ 새 프로젝트 추가
 			</button>
 		</div>
-		<p class="text-xl text-gray-400 mb-12">
+		<p class="text-warm-500 text-sm mb-10">
 			학습하며 만든 프로젝트들입니다.
 		</p>
 
-		<div id="projects-container" class="grid md:grid-cols-2 gap-6 mb-16">
+		<div id="projects-container" class="grid md:grid-cols-2 gap-4 mb-16">
 			<!-- Projects will be loaded here -->
 		</div>
 	</div>
 
 	<!-- Add/Edit Project Modal -->
-	<div id="project-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 overflow-y-auto">
-		<div class="bg-gray-800 p-6 rounded-lg w-full max-w-2xl m-4">
-			<h3 id="modal-title" class="text-2xl font-semibold mb-4">새 프로젝트 추가</h3>
+	<div id="project-modal" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center z-50 overflow-y-auto backdrop-blur-sm">
+		<div class="bg-warm-900 border border-warm-800 p-6 rounded-lg w-full max-w-2xl m-4">
+			<h3 id="modal-title" class="text-xl font-semibold text-warm-100 mb-4">새 프로젝트 추가</h3>
 			<form id="project-form">
 				<input type="hidden" id="project-id" />
 				<div class="mb-4">
-					<label class="block text-gray-300 mb-2">프로젝트 주제 *</label>
+					<label class="block text-warm-400 text-sm mb-2">프로젝트 주제 *</label>
 					<input
 						type="text"
 						id="project-title"
 						required
-						class="w-full px-4 py-2 bg-gray-700 text-gray-100 rounded border border-gray-600 focus:border-blue-400 outline-none"
+						class="w-full px-3 py-2 bg-warm-950 text-warm-100 rounded border border-warm-700 focus:border-accent outline-none transition-colors text-sm"
 					/>
 				</div>
 				<div class="mb-4">
-					<label class="block text-gray-300 mb-2">간단한 소개 * (리스트에 표시)</label>
+					<label class="block text-warm-400 text-sm mb-2">간단한 소개 * (리스트에 표시)</label>
 					<textarea
 						id="project-description"
 						required
 						rows="2"
 						placeholder="프로젝트의 핵심 내용을 간단히 요약해주세요"
-						class="w-full px-4 py-2 bg-gray-700 text-gray-100 rounded border border-gray-600 focus:border-blue-400 outline-none"
+						class="w-full px-3 py-2 bg-warm-950 text-warm-100 rounded border border-warm-700 focus:border-accent outline-none transition-colors text-sm"
 					></textarea>
 				</div>
 				<div class="mb-4">
-					<label class="block text-gray-300 mb-2">상세 본문 (상세 페이지에 표시)</label>
+					<label class="block text-warm-400 text-sm mb-2">상세 본문 (상세 페이지에 표시)</label>
 					<textarea
 						id="project-content"
 						rows="6"
 						placeholder="프로젝트의 목적, 구현 내용, 배운 점 등을 자세히 작성해주세요"
-						class="w-full px-4 py-2 bg-gray-700 text-gray-100 rounded border border-gray-600 focus:border-blue-400 outline-none"
+						class="w-full px-3 py-2 bg-warm-950 text-warm-100 rounded border border-warm-700 focus:border-accent outline-none transition-colors text-sm"
 					></textarea>
 				</div>
 				<div class="mb-4">
-					<label class="block text-gray-300 mb-2">기술 스택 (쉼표로 구분) *</label>
+					<label class="block text-warm-400 text-sm mb-2">기술 스택 (쉼표로 구분) *</label>
 					<input
 						type="text"
 						id="project-stack"
 						required
 						placeholder="예: React, TypeScript, Node.js"
-						class="w-full px-4 py-2 bg-gray-700 text-gray-100 rounded border border-gray-600 focus:border-blue-400 outline-none"
+						class="w-full px-3 py-2 bg-warm-950 text-warm-100 rounded border border-warm-700 focus:border-accent outline-none transition-colors text-sm"
 					/>
 				</div>
         <div class="mb-4">
-					<label class="block text-gray-300 mb-2">GitHub 주소 *</label>
+					<label class="block text-warm-400 text-sm mb-2">GitHub 주소 *</label>
 					<input
 						type="url"
 						id="project-github_url"
             required
 						placeholder="https://github.com/user/repo"
-						class="w-full px-4 py-2 bg-gray-700 text-gray-100 rounded border border-gray-600 focus:border-blue-400 outline-none"
+						class="w-full px-3 py-2 bg-warm-950 text-warm-100 rounded border border-warm-700 focus:border-accent outline-none transition-colors text-sm"
 					/>
 				</div>
 				<div class="flex gap-2 justify-end">
 					<button
 						type="button"
 						id="cancel-btn"
-						class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded"
+						class="px-3 py-1.5 bg-warm-800 hover:bg-warm-700 rounded text-sm text-warm-300 transition-colors"
 					>
 						취소
 					</button>
 					<button
 						type="submit"
-						class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded"
+						class="px-3 py-1.5 bg-accent hover:bg-accent-hover text-warm-950 rounded text-sm font-medium transition-colors"
 					>
 						저장
 					</button>
@@ -143,24 +143,24 @@ const pageTitle = 'Projects - CS {["장찬욱"]};';
 			if (projects.length === 0) {
 				container.innerHTML = `
 					<div class="col-span-2 text-center py-20">
-						<p class="text-gray-400 text-lg mb-4">아직 프로젝트가 없습니다.</p>
-						<p class="text-gray-500 text-sm">새 프로젝트를 추가해보세요!</p>
+						<p class="text-warm-500 text-sm mb-2">아직 프로젝트가 없습니다.</p>
+						<p class="text-warm-600 text-xs">새 프로젝트를 추가해보세요!</p>
 					</div>
 				`;
 				return;
 			}
 
 			container.innerHTML = projects.map(project => `
-				<article class="p-6 rounded-xl border border-gray-800 flex flex-col">
+				<article class="group p-5 rounded-lg border border-warm-800/50 hover:border-warm-700/80 transition-colors duration-300 bg-warm-900/30 flex flex-col">
 					<div class="space-y-3 flex-grow">
-						<h3 class="text-xl font-semibold">
-							<a href="/projects/${project.id}" class="hover:text-blue-400 transition-colors">${project.title}</a>
+						<h3 class="font-medium text-warm-100">
+							<a href="/projects/${project.id}" class="group-hover:text-accent transition-colors duration-300">${project.title}</a>
 						</h3>
-						<p class="text-gray-400">${project.description}</p>
+						<p class="text-warm-400 text-sm">${project.description}</p>
 						${project.stack && project.stack.length > 0 ? `
-							<div class="flex flex-wrap gap-2">
+							<div class="flex flex-wrap gap-1.5">
 								${project.stack.map(tag => `
-									<span class="px-3 py-1 text-sm bg-gray-900 rounded-full">${tag}</span>
+									<span class="px-2 py-0.5 text-xs text-warm-500 bg-warm-800/60 rounded">${tag}</span>
 								`).join('')}
 							</div>
 						` : ''}
@@ -171,10 +171,10 @@ const pageTitle = 'Projects - CS {["장찬욱"]};';
 								href="${project.github_url}"
                 target="_blank"
                 rel="noopener noreferrer"
-								class="inline-flex items-center gap-1 text-blue-400 hover:underline font-medium text-sm"
+								class="inline-flex items-center gap-1 text-warm-500 hover:text-accent text-sm transition-colors duration-300"
 							>
 								GitHub
-								<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
 								</svg>
 							</a>
@@ -188,9 +188,9 @@ const pageTitle = 'Projects - CS {["장찬욱"]};';
 			if (container) {
 				container.innerHTML = `
 					<div class="col-span-2 text-center py-20">
-						<p class="text-red-400 text-lg mb-4">프로젝트를 불러오는데 실패했습니다.</p>
-						<p class="text-gray-500 text-sm">에러: ${error.message}</p>
-						<p class="text-gray-500 text-sm">API URL: ${API_URL || '미설정'}</p>
+						<p class="text-red-400 text-sm mb-2">프로젝트를 불러오는데 실패했습니다.</p>
+						<p class="text-warm-600 text-xs">에러: ${error.message}</p>
+						<p class="text-warm-600 text-xs">API URL: ${API_URL || '미설정'}</p>
 					</div>
 				`;
 			}

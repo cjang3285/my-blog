@@ -2,41 +2,41 @@
 export const prerender = false;
 import Layout from '../../layouts/Layout.astro';
 
-const pageTitle = 'Admin Login - CS {["장찬욱"]};';
+const pageTitle = '로그인 - 장찬욱';
 ---
 
 <Layout title={pageTitle} description="관리자 로그인">
-  <div class="max-w-md mx-auto">
-    <div class="bg-gray-800 p-8 rounded-lg border border-gray-700">
-      <h1 class="text-3xl font-bold mb-6 text-center">관리자 로그인</h1>
+  <div class="max-w-sm mx-auto mt-12">
+    <div class="bg-warm-900/50 p-8 rounded-lg border border-warm-800/60">
+      <h1 class="text-xl font-semibold text-warm-100 mb-6 text-center tracking-tight">관리자 로그인</h1>
 
       <form id="login-form">
         <div class="mb-4">
-          <label class="block text-gray-300 mb-2">비밀번호</label>
+          <label class="block text-warm-400 text-sm mb-2">비밀번호</label>
           <input
             type="password"
             id="password"
             required
             autofocus
-            class="w-full px-4 py-2 bg-gray-700 text-gray-100 rounded border border-gray-600 focus:border-blue-400 outline-none"
+            class="w-full px-3 py-2 bg-warm-950 text-warm-100 rounded border border-warm-700 focus:border-accent outline-none transition-colors text-sm"
             placeholder="관리자 비밀번호 입력"
           />
         </div>
 
-        <div id="error-message" class="hidden mb-4 p-3 bg-red-900 border border-red-700 rounded text-red-200 text-sm">
+        <div id="error-message" class="hidden mb-4 p-3 bg-red-900/30 border border-red-800/50 rounded text-red-300 text-xs">
         </div>
 
         <button
           type="submit"
           id="login-btn"
-          class="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded font-medium transition-colors"
+          class="w-full px-4 py-2 bg-accent hover:bg-accent-hover text-warm-950 rounded font-medium text-sm transition-colors duration-300"
         >
           로그인
         </button>
       </form>
 
       <div class="mt-6 text-center">
-        <a href="/" class="text-blue-400 hover:underline text-sm">← 메인으로 돌아가기</a>
+        <a href="/" class="text-warm-500 hover:text-accent text-sm transition-colors duration-300">&larr; 메인으로</a>
       </div>
     </div>
   </div>
