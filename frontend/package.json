@@ -19,11 +19,12 @@
   "dependencies": {
     "@astrojs/node": "^9.0.0",
     "@tailwindcss/vite": "4.1.18",
-    "astro": "5.16.6",
+    "astro": "^5.18.0",
     "tailwindcss": "4.1.18"
   },
   "devDependencies": {
     "@astrojs/check": "0.9.4",
+    "@tailwindcss/typography": "^0.5.19",
     "@typescript-eslint/eslint-plugin": "8.19.1",
     "@typescript-eslint/parser": "8.19.1",
     "@vitest/ui": "2.1.8",
