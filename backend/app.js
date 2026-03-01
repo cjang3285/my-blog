@@ -5,8 +5,6 @@ import session from 'express-session';
 import cors from 'cors';
 import { autoAuth } from './middleware/auth.js';
 import statusRoutes from './routes/statusRoutes.js';
-import releaseRoutes from './routes/releaseRoutes.js';
-import conferenceRoutes from './routes/conferenceRoutes.js';
 import postRoutes from './routes/postRoutes.js';
 import projectRoutes from './routes/projectRoutes.js';
 import healthRoutes from './routes/healthRoutes.js';
