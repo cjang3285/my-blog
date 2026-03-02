@@ -26,12 +26,18 @@ jobs:
           cd backend && npm ci
           cd ../frontend && npm ci
 
+      - name: Install Playwright system dependencies
+        run: |
+          # Wait for any ongoing apt processes to finish
+          while sudo lsof /var/lib/apt/lists/lock 2>/dev/null | grep -q .; do
+            echo "Waiting for apt lock to be released..."
+            sleep 1
+          done
+          npx playwright install-deps chromium
+
       - name: Install Playwright browsers
         working-directory: frontend
         run: npx playwright install chromium
-
-      - name: Install Playwright system dependencies
-        run: npx playwright install-deps chromium
 
       - name: Build frontend
         working-directory: frontend
