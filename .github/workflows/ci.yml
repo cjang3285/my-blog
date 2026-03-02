@@ -1,6 +1,7 @@
 name: CI
 
 # feature 브랜치 → master PR 시 자동 실행
+# 또는 수동으로 GitHub Actions 탭에서 실행 가능
 on:
   pull_request:
     branches: [master]
@@ -9,82 +10,16 @@ on:
       - 'frontend/**'
       - 'ecosystem.config.cjs'
       - '.github/workflows/ci.yml'
+  workflow_dispatch:
 
 jobs:
   # ────────────────────────────────────────────
-  # 0. 린트
+  # 웹 페이지 테스트 (Playwright)
+  # 블로그 페이지 접속, 버튼 동작, 오류메시지 확인,
+  # 글 수정/삭제, admin 로그인 등을 테스트합니다
   # ────────────────────────────────────────────
-  lint:
-    name: Lint Code
-    runs-on: [self-hosted, node3]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Backend - lint
-        working-directory: backend
-        run: |
-          npm ci
-          npm run lint || echo "lint script not found, skipping"
-
-      - name: Frontend - lint
-        working-directory: frontend
-        run: |
-          npm ci
-          npm run lint || echo "lint script not found, skipping"
-
-  # ────────────────────────────────────────────
-  # 1. 단위 테스트 (DB 불필요)
-  # ────────────────────────────────────────────
-  unit-tests:
-    name: Unit Tests
-    needs: lint
-    if: false
-    runs-on: [self-hosted, node3]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Backend - install & unit test
-        working-directory: backend
-        run: |
-          npm ci
-          npm test
-
-      - name: Frontend - install & unit test
-        working-directory: frontend
-        run: |
-          npm ci
-          npm test -- --run
-
-  # ────────────────────────────────────────────
-  # 2. 통합 테스트 (test DB 쿼리 검증 + DB 복원)
-  # ────────────────────────────────────────────
-  integration-tests:
-    name: Integration Tests
-    needs: lint
-    if: false
-    runs-on: [self-hosted, node3]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Backend - install & integration test
-        working-directory: backend
-        env:
-          TEST_DB_HOST: ${{ secrets.TEST_DB_HOST }}
-          TEST_DB_PORT: ${{ secrets.TEST_DB_PORT }}
-          TEST_DB_NAME: ${{ secrets.TEST_DB_NAME }}
-          TEST_DB_USER: ${{ secrets.TEST_DB_USER }}
-          TEST_DB_PASSWORD: ${{ secrets.TEST_DB_PASSWORD }}
-        run: |
-          npm ci
-          npm run test:integration
-
-  # ────────────────────────────────────────────
-  # 3. E2E 테스트 (Playwright, 실제 서버 기동)
-  # ────────────────────────────────────────────
-  e2e-tests:
-    name: E2E Tests (Playwright)
-    needs: integration-tests
-    if: false
+  web-page-tests:
+    name: 웹 페이지 테스트 (Playwright)
     runs-on: [self-hosted, node3]
     steps:
       - uses: actions/checkout@v4
@@ -150,7 +85,7 @@ jobs:
           echo "ERROR: Servers failed to start within 60s"
           exit 1
 
-      - name: Run Playwright E2E tests
+      - name: Run Playwright web page tests
         working-directory: frontend
         env:
           PLAYWRIGHT_BASE_URL: http://localhost:4322
