@@ -138,7 +138,7 @@ jobs:
       - name: Wait for servers to be ready
         run: |
           for i in $(seq 1 30); do
-            BACKEND=$(curl -sf http://localhost:3001/api/health && echo ok || echo "")
+            BACKEND=$(curl -sf http://localhost:3001/api/ && echo ok || echo "")
             FRONTEND=$(curl -sf http://localhost:4322 && echo ok || echo "")
             if [ "$BACKEND" = "ok" ] && [ "$FRONTEND" = "ok" ]; then
               echo "Both servers ready after ${i}s"
