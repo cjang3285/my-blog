@@ -25,20 +25,23 @@ jobs:
         run: |
           cd backend && npm ci
           cd ../frontend && npm ci
-          # Ensure npm ci is fully complete and wait for background apt processes
-          sleep 10
-          # Stop any background apt processes that may be holding locks
+
+          # Clean up stuck apt processes
           sudo systemctl stop apt-daily >/dev/null 2>&1 || true
           sudo systemctl stop unattended-upgrades >/dev/null 2>&1 || true
-          # Wait for dpkg locks to be released
-          for i in {1..30}; do
-            if sudo fuser /var/lib/dpkg/lock-frontend 2>/dev/null; then
-              echo "Waiting for apt lock ($i/30)..."
-              sleep 1
-            else
-              break
-            fi
-          done
+          sleep 5
+
+          # Force kill any apt processes holding locks
+          sudo fuser -k /var/lib/dpkg/lock-frontend 2>/dev/null || true
+          sudo fuser -k /var/lib/apt/lists/lock 2>/dev/null || true
+
+          # Clean dpkg state and remove stale locks
+          sudo rm -f /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock /var/cache/apt/archives/lock
+          sudo dpkg --configure -a >/dev/null 2>&1 || true
+          sudo apt-get clean >/dev/null 2>&1 || true
+
+          sleep 2
+
           # Install Playwright browsers and system dependencies
           npx playwright install chromium
           npx playwright install-deps chromium
