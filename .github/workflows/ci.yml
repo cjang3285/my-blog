@@ -25,8 +25,20 @@ jobs:
         run: |
           cd backend && npm ci
           cd ../frontend && npm ci
-          # Ensure npm ci is fully complete before proceeding
-          sleep 5
+          # Ensure npm ci is fully complete and wait for background apt processes
+          sleep 10
+          # Stop any background apt processes that may be holding locks
+          sudo systemctl stop apt-daily >/dev/null 2>&1 || true
+          sudo systemctl stop unattended-upgrades >/dev/null 2>&1 || true
+          # Wait for dpkg locks to be released
+          for i in {1..30}; do
+            if sudo fuser /var/lib/dpkg/lock-frontend 2>/dev/null; then
+              echo "Waiting for apt lock ($i/30)..."
+              sleep 1
+            else
+              break
+            fi
+          done
           # Install Playwright browsers and system dependencies
           npx playwright install chromium
           npx playwright install-deps chromium
