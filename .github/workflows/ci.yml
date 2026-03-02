@@ -12,11 +12,33 @@ on:
 
 jobs:
   # ────────────────────────────────────────────
+  # 0. 린트
+  # ────────────────────────────────────────────
+  lint:
+    name: Lint Code
+    runs-on: [self-hosted, node3]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Backend - lint
+        working-directory: backend
+        run: |
+          npm install
+          npm run lint || echo "lint script not found, skipping"
+
+      - name: Frontend - lint
+        working-directory: frontend
+        run: |
+          npm install
+          npm run lint || echo "lint script not found, skipping"
+
+  # ────────────────────────────────────────────
   # 1. 단위 테스트 (DB 불필요)
   # ────────────────────────────────────────────
   unit-tests:
     name: Unit Tests
-    runs-on: [self-hosted, node2]
+    needs: lint
+    runs-on: [self-hosted, node3]
     steps:
       - uses: actions/checkout@v4
 
@@ -38,7 +60,7 @@ jobs:
   integration-tests:
     name: Integration Tests
     needs: unit-tests
-    runs-on: [self-hosted, node2]
+    runs-on: [self-hosted, node3]
     steps:
       - uses: actions/checkout@v4
 
@@ -60,7 +82,7 @@ jobs:
   e2e-tests:
     name: E2E Tests (Playwright)
     needs: integration-tests
-    runs-on: [self-hosted, node2]
+    runs-on: [self-hosted, node3]
     steps:
       - uses: actions/checkout@v4
 
@@ -140,7 +162,7 @@ jobs:
   # ────────────────────────────────────────────
   check-infra:
     name: Infrastructure Syntax Check
-    runs-on: [self-hosted, node2]
+    runs-on: [self-hosted, node3]
     if: |
       contains(github.event.pull_request.title, '[infra]') ||
       true

@@ -14,7 +14,7 @@ on:
 jobs:
   deploy:
     name: Deploy to Node2 (worker1)
-    runs-on: [self-hosted, node2]
+    runs-on: [self-hosted, node3]
     # ↓ GitHub Settings > Environments > "production" 에서 required reviewers 설정 필요
     environment: production
     steps:
