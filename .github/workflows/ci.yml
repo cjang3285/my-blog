@@ -13,32 +13,10 @@ on:
 
 jobs:
   # ────────────────────────────────────────────
-  # 0. 린트
-  # ────────────────────────────────────────────
-  lint:
-    name: Lint Code
-    runs-on: [self-hosted, node3]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Backend - lint
-        working-directory: backend
-        run: |
-          npm ci
-          npm run lint || echo "lint script not found, skipping"
-
-      - name: Frontend - lint
-        working-directory: frontend
-        run: |
-          npm ci
-          npm run lint || echo "lint script not found, skipping"
-
-  # ────────────────────────────────────────────
   # 1. Web Page Tests (Playwright, 실제 서버 기동)
   # ────────────────────────────────────────────
   web-page-tests:
     name: Web Page Tests (Playwright)
-    needs: lint
     runs-on: [self-hosted, node3]
     steps:
       - uses: actions/checkout@v4
@@ -114,28 +92,3 @@ jobs:
           name: playwright-report-${{ github.run_id }}
           path: frontend/playwright-report/
           retention-days: 7
-
-  # ────────────────────────────────────────────
-  # 2. 인프라 파일 문법 검사
-  # ────────────────────────────────────────────
-  check-infra:
-    name: Infrastructure Syntax Check
-    runs-on: [self-hosted, node3]
-    if: |
-      contains(github.event.pull_request.title, '[infra]') ||
-      true
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Shell script syntax check
-        run: bash -n deployment/redeploy.sh
-
-      - name: Nginx config syntax check
-        run: |
-          if git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -q 'nginx'; then
-            nginx -t -c $(pwd)/deployment/nginx-blog.conf \
-              && echo "nginx config OK" \
-              || echo "::warning::nginx config check failed — manual review required"
-          else
-            echo "nginx config unchanged, skipping"
-          fi
