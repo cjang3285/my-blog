@@ -60,8 +60,6 @@ app.use(autoAuth);
 // 라우터 연결
 app.use('/api/auth', authRoutes);
 app.use('/api/status', statusRoutes);
-app.use('/api/releases', releaseRoutes);
-app.use('/api/conferences', conferenceRoutes);
 app.use('/api/posts', postRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api', healthRoutes);

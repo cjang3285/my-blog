@@ -29,8 +29,6 @@ frontend/
 │   │   ├── projects/[id].astro
 │   │   ├── about.astro
 │   │   ├── status.astro
-│   │   ├── conferences.astro
-│   │   ├── releases.astro
 │   │   └── admin/login.astro
 │   └── styles/
 │       └── global.css

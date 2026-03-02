@@ -65,8 +65,6 @@ my-blog/
 | `/projects/[id]` | 프로젝트 상세 |
 | `/about` | 소개 |
 | `/status` | 시스템 상태 |
-| `/conferences` | 컨퍼런스 |
-| `/releases` | 릴리즈 |
 | `/admin/login` | 관리자 로그인 |
 
 ## API 엔드포인트
