@@ -21,32 +21,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install dependencies
+      - name: Install dependencies and Playwright
         run: |
           cd backend && npm ci
           cd ../frontend && npm ci
-
-      - name: Install Playwright system dependencies
-        run: |
-          # Wait for dpkg lock to be released (with retries)
-          MAX_RETRIES=30
-          RETRY=0
-          while [ $RETRY -lt $MAX_RETRIES ]; do
-            if npx playwright install-deps chromium 2>&1; then
-              exit 0
-            fi
-            RETRY=$((RETRY + 1))
-            if [ $RETRY -lt $MAX_RETRIES ]; then
-              echo "Retry $RETRY/$MAX_RETRIES - waiting for apt lock..."
-              sleep 2
-            fi
-          done
-          echo "Failed to install Playwright system dependencies after $MAX_RETRIES retries"
-          exit 1
-
-      - name: Install Playwright browsers
-        working-directory: frontend
-        run: npx playwright install chromium
+          # Ensure npm ci is fully complete before proceeding
+          sleep 5
+          # Install Playwright browsers and system dependencies
+          npx playwright install chromium
+          npx playwright install-deps chromium
 
       - name: Build frontend
         working-directory: frontend
