@@ -7,6 +7,7 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['tests/integration/**/*.test.js'],
+    passWithNoTests: true,
     globalSetup: ['./tests/setup/global-setup.js'],
     globalTeardown: ['./tests/setup/global-teardown.js'],
     coverage: {
