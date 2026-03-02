@@ -30,6 +30,3 @@ dist/
 .DS_Store
 Thumbs.db
 
-#package
-package-lock.json
-yarn.lock

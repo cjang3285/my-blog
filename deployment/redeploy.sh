@@ -1,4 +1,5 @@
 #!/bin/bash
+# GitHub Actions deploy.yml에 의해 자동 실행됨
 
 echo "======================================"
 echo "완전 재배포 스크립트"
