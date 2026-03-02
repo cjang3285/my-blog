@@ -266,8 +266,8 @@ sudo certbot renew --dry-run
 ### 백엔드 업데이트
 
 ```bash
-cd backend
-./deploy.sh
+git pull origin master
+pm2 restart blog-backend
 ```
 
 ### 프론트엔드 업데이트
