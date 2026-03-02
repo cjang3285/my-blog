@@ -20,7 +20,7 @@ my-blog/
 │   ├── middleware/            # 인증 미들웨어
 │   ├── utils/                 # 유틸리티 (마크다운 등)
 │   ├── db/                    # DB 마이그레이션 SQL
-│   └── config/                # 환경변수, DB, ESLint, Jest 설정
+│   └── config/                # 환경변수, DB, ESLint, Vitest 설정
 ├── deployment/                # 배포 설정 파일
 │   ├── nginx-blog.conf
 │   ├── blog-backend.service
