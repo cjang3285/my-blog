@@ -28,12 +28,21 @@ jobs:
 
       - name: Install Playwright system dependencies
         run: |
-          # Wait for any ongoing apt processes to finish
-          while sudo lsof /var/lib/apt/lists/lock 2>/dev/null | grep -q .; do
-            echo "Waiting for apt lock to be released..."
-            sleep 1
+          # Wait for dpkg lock to be released (with retries)
+          MAX_RETRIES=30
+          RETRY=0
+          while [ $RETRY -lt $MAX_RETRIES ]; do
+            if npx playwright install-deps chromium 2>&1; then
+              exit 0
+            fi
+            RETRY=$((RETRY + 1))
+            if [ $RETRY -lt $MAX_RETRIES ]; then
+              echo "Retry $RETRY/$MAX_RETRIES - waiting for apt lock..."
+              sleep 2
+            fi
           done
-          npx playwright install-deps chromium
+          echo "Failed to install Playwright system dependencies after $MAX_RETRIES retries"
+          exit 1
 
       - name: Install Playwright browsers
         working-directory: frontend
