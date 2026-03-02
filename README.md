@@ -196,8 +196,9 @@ npm run dev
 |--------|------|
 | `npm start` | 프로덕션 서버 실행 |
 | `npm run dev` | nodemon 개발 서버 실행 |
-| `npm test` | Jest 테스트 실행 |
-| `npm run test:watch` | Jest watch 모드 |
+| `npm test` | Vitest 테스트 실행 (`vitest run`) |
+| `npm run test:watch` | Vitest watch 모드 (`vitest`) |
+| `npm run test:integration` | 백엔드 통합 테스트 실행 |
 | `npm run lint` | ESLint 검사 |
 | `npm run lint:fix` | ESLint 자동 수정 |
 | `npm run format` | Prettier 포맷 |
