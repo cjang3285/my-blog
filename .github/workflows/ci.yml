@@ -17,12 +17,15 @@ jobs:
   # ────────────────────────────────────────────
   web-page-tests:
     name: Web Page Tests (Playwright)
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, node3]
     steps:
       - uses: actions/checkout@v4
 
       - name: Install dependencies
         run: |
+          # Pause unattended upgrades during CI to avoid apt lock conflicts
+          sudo systemctl stop unattended-upgrades 2>/dev/null || true
+
           cd backend && npm ci
           cd ../frontend && npm ci
 
