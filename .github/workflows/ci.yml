@@ -34,7 +34,89 @@ jobs:
           npm run lint || echo "lint script not found, skipping"
 
   # ────────────────────────────────────────────
-  # 1. 인프라 파일 문법 검사
+  # 1. Web Page Tests (Playwright, 실제 서버 기동)
+  # ────────────────────────────────────────────
+  web-page-tests:
+    name: Web Page Tests (Playwright)
+    needs: lint
+    runs-on: [self-hosted, node3]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          cd backend && npm ci
+          cd ../frontend && npm ci
+
+      - name: Install Playwright browsers
+        working-directory: frontend
+        run: npx playwright install chromium
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+      - name: Start test backend
+        working-directory: backend
+        env:
+          NODE_ENV: test
+          PORT: 3001
+          DB_HOST: ${{ secrets.TEST_DB_HOST }}
+          DB_PORT: ${{ secrets.TEST_DB_PORT }}
+          DB_NAME: ${{ secrets.TEST_DB_NAME }}
+          DB_USER: ${{ secrets.TEST_DB_USER }}
+          DB_PASSWORD: ${{ secrets.TEST_DB_PASSWORD }}
+          DB_SCHEMA: test_blog
+          SESSION_SECRET: ${{ secrets.TEST_SESSION_SECRET }}
+          FRONTEND_URL: http://localhost:4322
+        run: |
+          node app.js &
+          echo "BACKEND_PID=$!" >> $GITHUB_ENV
+
+      - name: Start test frontend
+        working-directory: frontend
+        env:
+          HOST: 127.0.0.1
+          PORT: 4322
+        run: |
+          node dist/server/entry.mjs &
+          echo "FRONTEND_PID=$!" >> $GITHUB_ENV
+
+      - name: Wait for servers to be ready
+        run: |
+          for i in $(seq 1 30); do
+            BACKEND=$(curl -sf http://localhost:3001/api/ && echo ok || echo "")
+            FRONTEND=$(curl -sf http://localhost:4322 && echo ok || echo "")
+            if [ "$BACKEND" = "ok" ] && [ "$FRONTEND" = "ok" ]; then
+              echo "Both servers ready after ${i}s"
+              exit 0
+            fi
+            echo "Waiting... ($i/30)"
+            sleep 2
+          done
+          echo "ERROR: Servers failed to start within 60s"
+          exit 1
+
+      - name: Run Playwright web page tests
+        working-directory: frontend
+        env:
+          PLAYWRIGHT_BASE_URL: http://localhost:4322
+        run: npm run test:e2e
+
+      - name: Stop test servers
+        if: always()
+        run: kill $BACKEND_PID $FRONTEND_PID 2>/dev/null || true
+
+      - name: Upload Playwright report (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ github.run_id }}
+          path: frontend/playwright-report/
+          retention-days: 7
+
+  # ────────────────────────────────────────────
+  # 2. 인프라 파일 문법 검사
   # ────────────────────────────────────────────
   check-infra:
     name: Infrastructure Syntax Check
