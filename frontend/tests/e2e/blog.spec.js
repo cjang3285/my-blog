@@ -28,9 +28,9 @@ test.describe('블로그 기본 시나리오', () => {
   });
 
   test('로그인 페이지 접근', async ({ page }) => {
-    await page.goto('/admin');
+    await page.goto('/admin/login');
     // 로그인 폼 또는 admin 페이지 (autoAuth 미동작 환경에선 로그인 폼이어야 함)
     const url = page.url();
-    expect(url).toMatch(/\/(admin|login)/);
+    expect(url).toContain('/admin/login');
   });
 });
