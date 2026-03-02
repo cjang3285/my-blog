@@ -94,16 +94,9 @@ jobs:
           cd backend && npm ci
           cd ../frontend && npm ci
 
-      - name: Wait for apt lock
-        run: |
-          while sudo fuser /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock /var/cache/apt/archives/lock >/dev/null 2>&1; do
-            echo "Waiting for apt/dpkg lock..."
-            sleep 5
-          done
-
       - name: Install Playwright browsers
         working-directory: frontend
-        run: npx playwright install chromium --with-deps
+        run: npx playwright install chromium
 
       - name: Build frontend
         working-directory: frontend
