@@ -9,6 +9,7 @@ on:
       - 'frontend/**'
       - 'ecosystem.config.cjs'
       - '.github/workflows/ci.yml'
+  workflow_dispatch:
 
 jobs:
   # ────────────────────────────────────────────
