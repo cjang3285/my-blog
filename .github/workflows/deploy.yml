@@ -23,7 +23,7 @@ jobs:
       - name: Deploy to Node2 via SSH
         run: |
           ssh -i ~/.ssh/deploy_key \
-            -o StrictHostKeyChecking=no \
+            -o StrictHostKeyChecking=yes \
             -o ConnectTimeout=30 \
             jcw@172.30.1.94 \
             "cd ~/my-blog && git pull origin master && bash deployment/redeploy.sh"
