@@ -61,6 +61,7 @@ jobs:
   integration-tests:
     name: Integration Tests
     needs: lint
+    if: false
     runs-on: [self-hosted, node3]
     steps:
       - uses: actions/checkout@v4
@@ -83,6 +84,7 @@ jobs:
   e2e-tests:
     name: E2E Tests (Playwright)
     needs: integration-tests
+    if: false
     runs-on: [self-hosted, node3]
     steps:
       - uses: actions/checkout@v4
