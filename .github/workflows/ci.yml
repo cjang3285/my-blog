@@ -80,6 +80,65 @@ jobs:
           echo "ERROR: Servers failed to start within 60s"
           exit 1
 
+      - name: Setup nginx as reverse proxy
+        run: |
+          sudo apt-get install -y nginx
+
+          # Create nginx config
+          sudo tee /etc/nginx/sites-available/test-blog > /dev/null << 'NGINX_EOF'
+          upstream backend {
+              server localhost:3001;
+          }
+
+          upstream frontend {
+              server localhost:4322;
+          }
+
+          server {
+              listen 80;
+              server_name localhost 127.0.0.1;
+
+              # Frontend
+              location / {
+                  proxy_pass http://frontend;
+                  proxy_http_version 1.1;
+                  proxy_set_header Upgrade $http_upgrade;
+                  proxy_set_header Connection 'upgrade';
+                  proxy_set_header Host $host;
+                  proxy_cache_bypass $http_upgrade;
+              }
+
+              # API
+              location /api/ {
+                  proxy_pass http://backend;
+                  proxy_http_version 1.1;
+                  proxy_set_header Upgrade $http_upgrade;
+                  proxy_set_header Connection 'upgrade';
+                  proxy_set_header Host $host;
+                  proxy_cache_bypass $http_upgrade;
+              }
+          }
+          NGINX_EOF
+
+          # Enable site
+          sudo rm -f /etc/nginx/sites-enabled/default
+          sudo ln -sf /etc/nginx/sites-available/test-blog /etc/nginx/sites-enabled/test-blog
+
+          # Test and start nginx
+          sudo nginx -t
+          sudo systemctl start nginx
+
+          # Wait for nginx to be ready
+          for i in $(seq 1 10); do
+            if curl -sf http://localhost/ > /dev/null 2>&1; then
+              echo "Nginx ready after ${i}s"
+              exit 0
+            fi
+            echo "Waiting for nginx... ($i/10)"
+            sleep 1
+          done
+          echo "Nginx ready"
+
       - name: Backup test database (posts, projects tables)
         env:
           DB_HOST: ${{ secrets.TEST_DB_HOST }}
@@ -92,10 +151,10 @@ jobs:
           chmod +x backend/scripts/backup-test-db.sh
           bash backend/scripts/backup-test-db.sh
 
-      - name: Run Playwright web page tests
+      - name: Run Playwright web page tests (via nginx)
         working-directory: frontend
         env:
-          PLAYWRIGHT_BASE_URL: http://localhost:4322
+          PLAYWRIGHT_BASE_URL: http://localhost
         run: npm run test:e2e
 
       - name: Restore test database (posts, projects tables)
@@ -111,9 +170,11 @@ jobs:
           chmod +x backend/scripts/restore-test-db.sh
           bash backend/scripts/restore-test-db.sh
 
-      - name: Stop test servers
+      - name: Stop test servers and nginx
         if: always()
-        run: kill $BACKEND_PID $FRONTEND_PID 2>/dev/null || true
+        run: |
+          kill $BACKEND_PID $FRONTEND_PID 2>/dev/null || true
+          sudo systemctl stop nginx 2>/dev/null || true
 
       - name: Upload Playwright report (on failure)
         if: failure()
