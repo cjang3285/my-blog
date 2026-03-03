@@ -9,7 +9,7 @@ test.describe('홈페이지 테스트', () => {
     await expect(page).toHaveTitle(/.+/);
 
     // DB 연결 상태 확인: 최신 글 또는 에러 메시지
-    const hasContent = await page.locator('text=/최신 글|에러/i').isVisible();
+    const hasContent = await page.locator('text=/최신 글|에러/i').first().isVisible();
     expect(hasContent).toBe(true);
   });
 
