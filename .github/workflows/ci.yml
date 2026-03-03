@@ -157,6 +157,57 @@ jobs:
           PLAYWRIGHT_BASE_URL: http://localhost
         run: npm run test:e2e
 
+      - name: Setup ngrok for manual testing
+        run: |
+          # ARM64용 ngrok 다운로드 (라즈베리파이)
+          wget -q https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-arm64.zip
+          unzip -q ngrok-v3-stable-linux-arm64.zip
+
+          # ngrok 실행 (백그라운드)
+          ./ngrok http 80 --log=stdout > /tmp/ngrok.log 2>&1 &
+          echo "NGROK_PID=$!" >> $GITHUB_ENV
+
+          # ngrok이 시작될 때까지 대기
+          sleep 3
+
+          # 공개 URL 추출
+          NGROK_URL=$(curl -s http://localhost:4040/api/tunnels 2>/dev/null | grep -o 'https://[^"]*' | head -1)
+
+          if [ -z "$NGROK_URL" ]; then
+            echo "Warning: Could not get ngrok URL, retrying..."
+            sleep 2
+            NGROK_URL=$(curl -s http://localhost:4040/api/tunnels 2>/dev/null | grep -o 'https://[^"]*' | head -1)
+          fi
+
+          echo "NGROK_URL=$NGROK_URL" >> $GITHUB_ENV
+
+          echo "=========================================="
+          echo "✅ 테스트 서버가 준비되었습니다!"
+          echo "=========================================="
+          echo "🌐 접속 링크: $NGROK_URL/blog"
+          echo "=========================================="
+
+      - name: Manual approval for testing
+        uses: trstringer/manual-approval@v1
+        with:
+          secret: ${{ secrets.GITHUB_TOKEN }}
+          approvers: cjang3285
+          minimum-approvals: 1
+          issue-title: '✅ 페이지네이션 테스트 준비 완료'
+          issue-body: |
+            E2E 테스트가 완료되었습니다.
+
+            **공개 링크로 접속하세요:**
+            ${{ env.NGROK_URL }}/blog
+
+            페이지네이션이 정상 작동하는지 확인한 후 아래의 "Approve" 버튼을 클릭하세요.
+
+            **확인 사항:**
+            - [ ] 페이지 1에 10개의 포스트 표시
+            - [ ] 페이지 2 버튼 클릭 후 5개의 포스트 표시
+            - [ ] 이전/다음 버튼 정상 작동
+            - [ ] 페이지 번호가 올바르게 표시
+
       - name: Restore test database (posts, projects tables)
         if: always()
         env:
@@ -170,11 +221,13 @@ jobs:
           chmod +x backend/scripts/restore-test-db.sh
           bash backend/scripts/restore-test-db.sh
 
-      - name: Stop test servers and nginx
+      - name: Stop test servers, nginx, and ngrok
         if: always()
         run: |
           kill $BACKEND_PID $FRONTEND_PID 2>/dev/null || true
+          kill $NGROK_PID 2>/dev/null || true
           sudo systemctl stop nginx 2>/dev/null || true
+          echo "All services stopped"
 
       - name: Upload Playwright report (on failure)
         if: failure()
