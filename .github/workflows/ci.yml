@@ -1,6 +1,7 @@
 name: CI
 
 # feature 브랜치 → master PR 시 자동 실행
+# 또는 수동으로 GitHub Actions 탭에서 실행 가능
 on:
   pull_request:
     branches: [master]
