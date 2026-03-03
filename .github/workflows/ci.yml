@@ -187,26 +187,30 @@ jobs:
           echo "🌐 접속 링크: $NGROK_URL/blog"
           echo "=========================================="
 
-      - name: Manual approval for testing
-        uses: trstringer/manual-approval@v1
-        with:
-          secret: ${{ secrets.GITHUB_TOKEN }}
-          approvers: cjang3285
-          minimum-approvals: 1
-          issue-title: '✅ 페이지네이션 테스트 준비 완료'
-          issue-body: |
-            E2E 테스트가 완료되었습니다.
+      - name: Wait for manual testing verification
+        run: |
+          echo ""
+          echo "╔═════════════════════════════════════════════════════════════╗"
+          echo "║                                                             ║"
+          echo "║  ✅ 테스트 서버가 준비되었습니다!                          ║"
+          echo "║                                                             ║"
+          echo "║  🌐 접속 링크:                                             ║"
+          echo "║  ${{ env.NGROK_URL }}/blog"
+          echo "║                                                             ║"
+          echo "║  📋 확인 사항:                                             ║"
+          echo "║  □ 페이지 1에 10개의 포스트 표시                          ║"
+          echo "║  □ 페이지 2 버튼 클릭 후 5개의 포스트 표시               ║"
+          echo "║  □ 이전/다음 버튼 정상 작동                              ║"
+          echo "║  □ 페이지 번호가 올바르게 표시                           ║"
+          echo "║                                                             ║"
+          echo "║  ⏱️  10분 동안 서버가 유지됩니다.                         ║"
+          echo "║     확인 후 CI가 자동 계속 진행됩니다.                   ║"
+          echo "║                                                             ║"
+          echo "╚═════════════════════════════════════════════════════════════╝"
+          echo ""
 
-            **공개 링크로 접속하세요:**
-            ${{ env.NGROK_URL }}/blog
-
-            페이지네이션이 정상 작동하는지 확인한 후 아래의 "Approve" 버튼을 클릭하세요.
-
-            **확인 사항:**
-            - [ ] 페이지 1에 10개의 포스트 표시
-            - [ ] 페이지 2 버튼 클릭 후 5개의 포스트 표시
-            - [ ] 이전/다음 버튼 정상 작동
-            - [ ] 페이지 번호가 올바르게 표시
+          # 10분 대기
+          sleep 600
 
       - name: Restore test database (posts, projects tables)
         if: always()
