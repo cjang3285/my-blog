@@ -51,8 +51,9 @@ test.describe('블로그 목록 페이지 테스트', () => {
     if (hasContent > 0) {
       // 각 글이 필요한 요소를 가지고 있는지 확인
       const firstPost = page.locator('[class*="blog"], [class*="post"], article').first();
-      // 제목이 있어야 함
-      await expect(firstPost.locator('h').first()).toBeVisible();
+      // 제목이 있어야 함 (h1~h6 또는 제목 클래스를 가진 요소)
+      const titleLocator = firstPost.locator('h1, h2, h3, h4, h5, h6, [class*="title"], [class*="heading"]').first();
+      await expect(titleLocator).toBeVisible();
     }
   });
 });
@@ -104,29 +105,37 @@ test.describe('블로그 상세 페이지 및 CRUD 테스트', () => {
       await expect(modal).toBeVisible({ timeout: 5000 });
     }
 
-    // 형식 필드 수정
-    const titleInput = page.locator('#post-title, [id*="title"]').first();
-    const excerptInput = page.locator('#post-excerpt, [id*="excerpt"]').first();
-    const contentInput = page.locator('#post-content, [id*="content"]').first();
-    const tagsInput = page.locator('#post-tags, [id*="tags"]').first();
+    // 형식 필드 수정 (모달 내부의 입력 필드)
+    const titleInput = page.locator('input[type="text"][placeholder*="제목"], input[type="text"][placeholder*="title"], input#post-title').first();
+    const excerptInput = page.locator('textarea[placeholder*="요약"], textarea[placeholder*="excerpt"], input#post-excerpt').first();
+    const contentInput = page.locator('textarea[placeholder*="본문"], textarea[placeholder*="content"], textarea#post-content').first();
+    const tagsInput = page.locator('input[type="text"][placeholder*="태그"], input[placeholder*="tags"], input#post-tags').first();
 
     if (await titleInput.count() > 0) {
-      // 각 필드 수정
-      await titleInput.clear();
+      // 각 필드 수정 (clear 대신 Ctrl+A + Delete 사용)
+      await titleInput.click();
+      await titleInput.press('Control+A');
+      await titleInput.press('Delete');
       await titleInput.fill('테스트 수정된 제목 ' + new Date().getTime());
 
       if (await excerptInput.count() > 0) {
-        await excerptInput.clear();
+        await excerptInput.click();
+        await excerptInput.press('Control+A');
+        await excerptInput.press('Delete');
         await excerptInput.fill('테스트 수정된 요약 - ' + new Date().getTime());
       }
 
       if (await contentInput.count() > 0) {
-        await contentInput.clear();
+        await contentInput.click();
+        await contentInput.press('Control+A');
+        await contentInput.press('Delete');
         await contentInput.fill('테스트 수정된 본문입니다. ' + new Date().getTime());
       }
 
       if (await tagsInput.count() > 0) {
-        await tagsInput.clear();
+        await tagsInput.click();
+        await tagsInput.press('Control+A');
+        await tagsInput.press('Delete');
         await tagsInput.fill('test, playwright, e2e');
       }
 
@@ -163,7 +172,7 @@ test.describe('블로그 상세 페이지 및 CRUD 테스트', () => {
     if (await deleteBtn.count() > 0) {
       // 확인 대화상자 처리
       page.once('dialog', dialog => {
-        expect(dialog.message()).toContain(/삭제|delete/i);
+        expect(dialog.message()).toMatch(/삭제|delete/i);
         dialog.accept();
       });
 
@@ -253,35 +262,45 @@ test.describe('프로젝트 상세 페이지 및 CRUD 테스트', () => {
       await expect(modal).toBeVisible({ timeout: 5000 });
     }
 
-    // 프로젝트 필드 수정
-    const titleInput = page.locator('#project-title, [id*="title"]').first();
-    const descInput = page.locator('#project-description, [id*="description"]').first();
-    const contentInput = page.locator('#project-content-input, [id*="content"]').first();
-    const stackInput = page.locator('#project-stack, [id*="stack"]').first();
-    const urlInput = page.locator('#project-github_url, [id*="github"]').first();
+    // 프로젝트 필드 수정 (모달 내부의 입력 필드)
+    const titleInput = page.locator('input[type="text"][placeholder*="제목"], input[type="text"][placeholder*="title"], input#project-title').first();
+    const descInput = page.locator('input[type="text"][placeholder*="설명"], textarea[placeholder*="description"], input#project-description').first();
+    const contentInput = page.locator('textarea[placeholder*="상세"], textarea[placeholder*="content"], textarea#project-content-input').first();
+    const stackInput = page.locator('input[type="text"][placeholder*="스택"], input[placeholder*="stack"], input#project-stack').first();
+    const urlInput = page.locator('input[type="text"][placeholder*="github"], input[type="url"], input#project-github_url').first();
 
     if (await titleInput.count() > 0) {
-      // 각 필드 수정
-      await titleInput.clear();
+      // 각 필드 수정 (clear 대신 Ctrl+A + Delete 사용)
+      await titleInput.click();
+      await titleInput.press('Control+A');
+      await titleInput.press('Delete');
       await titleInput.fill('테스트 프로젝트 ' + new Date().getTime());
 
       if (await descInput.count() > 0) {
-        await descInput.clear();
+        await descInput.click();
+        await descInput.press('Control+A');
+        await descInput.press('Delete');
         await descInput.fill('테스트 수정된 설명');
       }
 
       if (await contentInput.count() > 0) {
-        await contentInput.clear();
+        await contentInput.click();
+        await contentInput.press('Control+A');
+        await contentInput.press('Delete');
         await contentInput.fill('테스트 프로젝트의 상세 내용입니다.');
       }
 
       if (await stackInput.count() > 0) {
-        await stackInput.clear();
+        await stackInput.click();
+        await stackInput.press('Control+A');
+        await stackInput.press('Delete');
         await stackInput.fill('Test, Playwright');
       }
 
       if (await urlInput.count() > 0) {
-        await urlInput.clear();
+        await urlInput.click();
+        await urlInput.press('Control+A');
+        await urlInput.press('Delete');
         await urlInput.fill('https://github.com/test/test');
       }
 
@@ -329,7 +348,7 @@ test.describe('프로젝트 상세 페이지 및 CRUD 테스트', () => {
     if (await deleteBtn.count() > 0) {
       // 확인 대화상자 처리
       page.once('dialog', dialog => {
-        expect(dialog.message()).toContain(/삭제|delete/i);
+        expect(dialog.message()).toMatch(/삭제|delete/i);
         dialog.accept();
       });
 
