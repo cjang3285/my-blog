@@ -5,12 +5,23 @@ import {
   getPostById,
   createPost,
   updatePost as updatePostService,
-  deletePost as deletePostService
+  deletePost as deletePostService,
+  getPaginatedPosts
 } from '../services/postService.js';
 
-// GET /api/posts - Get all posts
+// GET /api/posts - Get all posts or paginated posts
 export const getPosts = async (req, res) => {
   try {
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 10;
+
+    // If pagination parameters are provided, return paginated results
+    if (req.query.page || req.query.limit) {
+      const result = await getPaginatedPosts(page, limit);
+      return res.json(result);
+    }
+
+    // Otherwise return all posts for backward compatibility
     const posts = await getAllPosts();
     res.json(posts);
   } catch (error) {

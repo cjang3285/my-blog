@@ -14,6 +14,34 @@ export const getAllPosts = async () => {
   }
 };
 
+// Get paginated posts
+export const getPaginatedPosts = async (page = 1, limit = 10) => {
+  try {
+    const offset = (page - 1) * limit;
+
+    // Get total count of posts
+    const countResult = await pool.query('SELECT COUNT(*) FROM posts');
+    const totalPosts = parseInt(countResult.rows[0].count, 10);
+
+    // Get paginated posts
+    const result = await pool.query(
+      'SELECT * FROM posts ORDER BY date DESC, id DESC LIMIT $1 OFFSET $2',
+      [limit, offset]
+    );
+
+    return {
+      posts: result.rows,
+      totalPosts,
+      totalPages: Math.ceil(totalPosts / limit),
+      currentPage: page,
+      pageSize: limit
+    };
+  } catch (error) {
+    console.error('Error in getPaginatedPosts service:', error);
+    throw error;
+  }
+};
+
 // Get featured posts only
 export const getFeaturedPosts = async () => {
   try {

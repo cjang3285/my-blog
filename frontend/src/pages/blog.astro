@@ -19,6 +19,11 @@ const pageTitle = '글 - 장찬욱';
 		<div id="posts-container">
 			<!-- Posts will be loaded here -->
 		</div>
+
+		<!-- Pagination Controls -->
+		<div id="pagination-container" class="flex items-center justify-center gap-2 mt-12 mb-6">
+			<!-- Pagination will be rendered here -->
+		</div>
 	</div>
 
 	<!-- Add/Edit Post Modal -->
@@ -93,6 +98,9 @@ const pageTitle = '글 - 장찬욱';
 	const API_URL = import.meta.env.PUBLIC_API_URL || '';
 	let editingPostId: string | null = null;
 	let isAuthenticated = false;
+	let currentPage = 1;
+	let totalPages = 1;
+	const pageSize = 10;
 
 	// Check authentication status
 	async function checkAuth() {
@@ -114,25 +122,29 @@ const pageTitle = '글 - 장찬욱';
 		}
 	}
 
-	async function loadPosts() {
+	async function loadPosts(page: number = 1) {
 		try {
 			console.log('[BLOG] API_URL:', API_URL);
-			console.log('[BLOG] Fetching posts from:', `${API_URL}/api/posts`);
-			const response = await fetch(`${API_URL}/api/posts`);
+			console.log('[BLOG] Fetching posts from:', `${API_URL}/api/posts?page=${page}&limit=${pageSize}`);
+			const response = await fetch(`${API_URL}/api/posts?page=${page}&limit=${pageSize}`);
 			console.log('[BLOG] Response status:', response.status);
 
 			if (!response.ok) {
 				throw new Error(`HTTP ${response.status}`);
 			}
 
-			const posts = await response.json();
-			console.log('[BLOG] Loaded posts:', posts.length);
+			const data = await response.json();
+			console.log('[BLOG] Loaded posts:', data.posts?.length || data.length);
 
 			const container = document.getElementById('posts-container');
 			if (!container) {
 				console.error('[BLOG] Container not found');
 				return;
 			}
+
+			// Handle both paginated and non-paginated responses
+			const posts = data.posts || data;
+			const paginationInfo = data.posts ? data : null;
 
 			if (posts.length === 0) {
 				container.innerHTML = `
@@ -141,8 +153,12 @@ const pageTitle = '글 - 장찬욱';
 						<p class="text-warm-600 text-xs">새 글을 작성해보세요!</p>
 					</div>
 				`;
+				renderPagination(null);
 				return;
 			}
+
+			currentPage = paginationInfo?.currentPage || 1;
+			totalPages = paginationInfo?.totalPages || 1;
 
 			container.innerHTML = posts.map(post => `
 				<article class="group py-6 border-b border-warm-800/50">
@@ -162,6 +178,8 @@ const pageTitle = '글 - 장찬욱';
 					<p class="text-warm-400 text-sm">${post.excerpt}</p>
 				</article>
 			`).join('');
+
+			renderPagination(paginationInfo);
 		} catch (error) {
 			console.error('[BLOG] Failed to load posts:', error);
 			const container = document.getElementById('posts-container');
@@ -174,7 +192,66 @@ const pageTitle = '글 - 장찬욱';
 					</div>
 				`;
 			}
+			renderPagination(null);
 		}
+	}
+
+	function renderPagination(paginationInfo: any) {
+		const paginationContainer = document.getElementById('pagination-container');
+		if (!paginationContainer) return;
+
+		if (!paginationInfo || paginationInfo.totalPages <= 1) {
+			paginationContainer.innerHTML = '';
+			return;
+		}
+
+		const pages = [];
+		const maxPagesToShow = 5;
+		let startPage = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2));
+		let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
+
+		if (endPage - startPage < maxPagesToShow - 1) {
+			startPage = Math.max(1, endPage - maxPagesToShow + 1);
+		}
+
+		let html = '';
+
+		// Previous button
+		if (currentPage > 1) {
+			html += `<button class="px-3 py-1.5 bg-warm-800 hover:bg-warm-700 text-warm-300 rounded text-sm transition-colors" onclick="loadPosts(${currentPage - 1})">이전</button>`;
+		}
+
+		// First page button if not visible
+		if (startPage > 1) {
+			html += `<button class="px-3 py-1.5 bg-warm-800 hover:bg-warm-700 text-warm-300 rounded text-sm transition-colors" onclick="loadPosts(1)">1</button>`;
+			if (startPage > 2) {
+				html += `<span class="text-warm-500">...</span>`;
+			}
+		}
+
+		// Page buttons
+		for (let i = startPage; i <= endPage; i++) {
+			if (i === currentPage) {
+				html += `<button class="px-3 py-1.5 bg-accent text-warm-950 rounded text-sm font-medium transition-colors" disabled>${i}</button>`;
+			} else {
+				html += `<button class="px-3 py-1.5 bg-warm-800 hover:bg-warm-700 text-warm-300 rounded text-sm transition-colors" onclick="loadPosts(${i})">${i}</button>`;
+			}
+		}
+
+		// Last page button if not visible
+		if (endPage < totalPages) {
+			if (endPage < totalPages - 1) {
+				html += `<span class="text-warm-500">...</span>`;
+			}
+			html += `<button class="px-3 py-1.5 bg-warm-800 hover:bg-warm-700 text-warm-300 rounded text-sm transition-colors" onclick="loadPosts(${totalPages})">${totalPages}</button>`;
+		}
+
+		// Next button
+		if (currentPage < totalPages) {
+			html += `<button class="px-3 py-1.5 bg-warm-800 hover:bg-warm-700 text-warm-300 rounded text-sm transition-colors" onclick="loadPosts(${currentPage + 1})">다음</button>`;
+		}
+
+		paginationContainer.innerHTML = html;
 	}
 
 	// Modal handling
@@ -228,16 +305,18 @@ const pageTitle = '글 - 장찬욱';
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({ title, excerpt, content, tags, featured })
 				});
+				// Reload current page
+				await loadPosts(currentPage);
 			} else {
-				// CREATE new post
+				// CREATE new post - reload first page to show new post
 				await fetch(`${API_URL}/api/posts`, {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({ title, excerpt, content, tags, featured })
 				});
+				await loadPosts(1);
 			}
 
-			await loadPosts();
 			closeModal();
 		} catch (error) {
 			console.error('Failed to save post:', error);
