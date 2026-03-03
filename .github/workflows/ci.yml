@@ -170,46 +170,67 @@ jobs:
           ./ngrok http 80 --log=stdout > /tmp/ngrok.log 2>&1 &
           echo "NGROK_PID=$!" >> $GITHUB_ENV
 
-          # ngrok이 시작될 때까지 대기
-          sleep 3
+          # ngrok이 시작될 때까지 대기 (최대 10초)
+          for i in $(seq 1 10); do
+            if curl -sf http://localhost:4040/api/tunnels > /dev/null 2>&1; then
+              echo "ngrok ready after ${i}s"
+              break
+            fi
+            echo "Waiting for ngrok API... ($i/10)"
+            sleep 1
+          done
 
-          # 공개 URL 추출
-          NGROK_URL=$(curl -s http://localhost:4040/api/tunnels 2>/dev/null | grep -o 'https://[^"]*' | head -1)
+          # 공개 URL 추출 (Python 사용으로 더 안정적)
+          NGROK_URL=$(python3 -c "
+          import json, urllib.request
+          try:
+              response = urllib.request.urlopen('http://localhost:4040/api/tunnels')
+              data = json.loads(response.read())
+              for tunnel in data.get('tunnels', []):
+                  if 'https://' in tunnel.get('public_url', ''):
+                      print(tunnel['public_url'])
+                      break
+          except:
+              print('')
+          " 2>/dev/null)
 
           if [ -z "$NGROK_URL" ]; then
-            echo "Warning: Could not get ngrok URL, retrying..."
-            sleep 2
-            NGROK_URL=$(curl -s http://localhost:4040/api/tunnels 2>/dev/null | grep -o 'https://[^"]*' | head -1)
+            echo "⚠️  WARNING: Could not get ngrok URL!"
+            echo "Response from ngrok API:"
+            curl -s http://localhost:4040/api/tunnels | head -20
+            NGROK_URL="http://localhost (내 데스크톱에서는 접속 불가)"
           fi
 
           echo "NGROK_URL=$NGROK_URL" >> $GITHUB_ENV
 
+          echo ""
           echo "=========================================="
           echo "✅ 테스트 서버가 준비되었습니다!"
           echo "=========================================="
           echo "🌐 접속 링크: $NGROK_URL/blog"
           echo "=========================================="
+          echo ""
 
       - name: Wait for manual testing verification
         run: |
           echo ""
-          echo "╔═════════════════════════════════════════════════════════════╗"
-          echo "║                                                             ║"
-          echo "║  ✅ 테스트 서버가 준비되었습니다!                          ║"
-          echo "║                                                             ║"
-          echo "║  🌐 접속 링크:                                             ║"
+          echo "╔══════════════════════════════════════════════════════════════════╗"
+          echo "║                                                                  ║"
+          echo "║  ✅ 테스트 서버가 준비되었습니다!                               ║"
+          echo "║                                                                  ║"
+          echo "║  🌐 데스크톱에서 접속:                                          ║"
           echo "║  ${{ env.NGROK_URL }}/blog"
-          echo "║                                                             ║"
-          echo "║  📋 확인 사항:                                             ║"
-          echo "║  □ 페이지 1에 10개의 포스트 표시                          ║"
-          echo "║  □ 페이지 2 버튼 클릭 후 5개의 포스트 표시               ║"
-          echo "║  □ 이전/다음 버튼 정상 작동                              ║"
-          echo "║  □ 페이지 번호가 올바르게 표시                           ║"
-          echo "║                                                             ║"
-          echo "║  ⏱️  10분 동안 서버가 유지됩니다.                         ║"
-          echo "║     확인 후 CI가 자동 계속 진행됩니다.                   ║"
-          echo "║                                                             ║"
-          echo "╚═════════════════════════════════════════════════════════════╝"
+          echo "║                                                                  ║"
+          echo "║  📋 확인 사항:                                                  ║"
+          echo "║  □ 페이지 1에 10개의 포스트 표시                               ║"
+          echo "║  □ 페이지 2 버튼 클릭 후 5개의 포스트 표시                    ║"
+          echo "║  □ 이전/다음 버튼 정상 작동                                   ║"
+          echo "║  □ 페이지 번호가 올바르게 표시                                ║"
+          echo "║                                                                  ║"
+          echo "║  ⏱️  10분 동안 서버가 유지됩니다.                              ║"
+          echo "║     확인 후 CI가 자동 계속 진행됩니다.                        ║"
+          echo "║                                                                  ║"
+          echo "╚══════════════════════════════════════════════════════════════════╝"
           echo ""
 
           # 10분 대기
