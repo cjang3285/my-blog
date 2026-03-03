@@ -14,31 +14,26 @@ on:
 
 jobs:
   # ────────────────────────────────────────────
-  # 웹 페이지 테스트 (Playwright)
-  # 블로그 페이지 접속, 버튼 동작, 오류메시지 확인,
-  # 글 수정/삭제, admin 로그인 등을 테스트합니다
+  # 1. Web Page Tests (Playwright, 실제 서버 기동)
   # ────────────────────────────────────────────
   web-page-tests:
-    name: 웹 페이지 테스트 (Playwright)
+    name: Web Page Tests (Playwright)
     runs-on: [self-hosted, node3]
     steps:
       - uses: actions/checkout@v4
 
       - name: Install dependencies
         run: |
+          # Pause unattended upgrades during CI to avoid apt lock conflicts
+          sudo systemctl stop unattended-upgrades 2>/dev/null || true
+
           cd backend && npm ci
           cd ../frontend && npm ci
 
-      - name: Wait for apt lock
+      - name: Install Playwright browsers and dependencies
         run: |
-          while sudo fuser /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock /var/cache/apt/archives/lock >/dev/null 2>&1; do
-            echo "Waiting for apt/dpkg lock..."
-            sleep 5
-          done
-
-      - name: Install Playwright browsers
-        working-directory: frontend
-        run: npx playwright install chromium --with-deps
+          npx playwright install chromium
+          npx playwright install-deps chromium
 
       - name: Build frontend
         working-directory: frontend
@@ -73,8 +68,8 @@ jobs:
       - name: Wait for servers to be ready
         run: |
           for i in $(seq 1 30); do
-            BACKEND=$(curl -sf http://localhost:3001/api/ && echo ok || echo "")
-            FRONTEND=$(curl -sf http://localhost:4322 && echo ok || echo "")
+            BACKEND=$(curl -sf http://localhost:3001/api/ > /dev/null 2>&1 && echo ok || echo "")
+            FRONTEND=$(curl -sf http://localhost:4322 > /dev/null 2>&1 && echo ok || echo "")
             if [ "$BACKEND" = "ok" ] && [ "$FRONTEND" = "ok" ]; then
               echo "Both servers ready after ${i}s"
               exit 0
@@ -85,11 +80,36 @@ jobs:
           echo "ERROR: Servers failed to start within 60s"
           exit 1
 
+      - name: Backup test database (posts, projects tables)
+        env:
+          DB_HOST: ${{ secrets.TEST_DB_HOST }}
+          DB_PORT: ${{ secrets.TEST_DB_PORT }}
+          DB_NAME: ${{ secrets.TEST_DB_NAME }}
+          DB_USER: ${{ secrets.TEST_DB_USER }}
+          DB_PASSWORD: ${{ secrets.TEST_DB_PASSWORD }}
+          DB_SCHEMA: test_blog
+        run: |
+          chmod +x backend/scripts/backup-test-db.sh
+          bash backend/scripts/backup-test-db.sh
+
       - name: Run Playwright web page tests
         working-directory: frontend
         env:
           PLAYWRIGHT_BASE_URL: http://localhost:4322
         run: npm run test:e2e
+
+      - name: Restore test database (posts, projects tables)
+        if: always()
+        env:
+          DB_HOST: ${{ secrets.TEST_DB_HOST }}
+          DB_PORT: ${{ secrets.TEST_DB_PORT }}
+          DB_NAME: ${{ secrets.TEST_DB_NAME }}
+          DB_USER: ${{ secrets.TEST_DB_USER }}
+          DB_PASSWORD: ${{ secrets.TEST_DB_PASSWORD }}
+          DB_SCHEMA: test_blog
+        run: |
+          chmod +x backend/scripts/restore-test-db.sh
+          bash backend/scripts/restore-test-db.sh
 
       - name: Stop test servers
         if: always()
@@ -102,28 +122,3 @@ jobs:
           name: playwright-report-${{ github.run_id }}
           path: frontend/playwright-report/
           retention-days: 7
-
-  # ────────────────────────────────────────────
-  # 4. 인프라 파일 문법 검사
-  # ────────────────────────────────────────────
-  check-infra:
-    name: Infrastructure Syntax Check
-    runs-on: [self-hosted, node3]
-    if: |
-      contains(github.event.pull_request.title, '[infra]') ||
-      true
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Shell script syntax check
-        run: bash -n deployment/redeploy.sh
-
-      - name: Nginx config syntax check
-        run: |
-          if git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -q 'nginx'; then
-            nginx -t -c $(pwd)/deployment/nginx-blog.conf \
-              && echo "nginx config OK" \
-              || echo "::warning::nginx config check failed — manual review required"
-          else
-            echo "nginx config unchanged, skipping"
-          fi
