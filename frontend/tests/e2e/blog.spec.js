@@ -268,3 +268,45 @@ test.describe('소개 페이지 테스트', () => {
     expect(content.length).toBeGreaterThan(50);
   });
 });
+
+// ============================================================================
+// 7. 어드민 로그인 페이지 (/admin/login)
+// ============================================================================
+test.describe('어드민 페이지 테스트', () => {
+  test('어드민 로그인 페이지 접속', async ({ page }) => {
+    await page.goto('/admin/login');
+
+    // 페이지 로드 확인
+    await expect(page).toHaveTitle(/.+/);
+
+    // 로그인 폼이 있는지 확인
+    const form = page.locator('form');
+    await expect(form).toBeVisible();
+
+    // 유저네임/아이디 입력 필드 확인
+    const idInput = page.locator('input[type="text"], input[type="email"], input[id*="user"], input[id*="email"]').first();
+    if (await idInput.count() > 0) {
+      await expect(idInput).toBeVisible();
+    }
+
+    // 비밀번호 입력 필드 확인
+    const passwordInput = page.locator('input[type="password"]');
+    await expect(passwordInput).toBeVisible();
+
+    // 로그인 버튼 확인
+    const submitBtn = page.locator('button[type="submit"], button:has-text("로그인"), button:has-text("Login")').first();
+    if (await submitBtn.count() > 0) {
+      await expect(submitBtn).toBeVisible();
+    }
+  });
+
+  test('어드민 로그인 페이지 에러 없음', async ({ page }) => {
+    await page.goto('/admin/login');
+
+    // 500 에러가 없어야 함
+    await expect(page.locator('body')).not.toContainText(/Internal Server Error|500/i);
+
+    // 로드 완료
+    await expect(page.locator('body')).toBeVisible();
+  });
+});
