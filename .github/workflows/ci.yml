@@ -158,14 +158,25 @@ jobs:
         run: npm run test:e2e
 
       - name: Setup ngrok for manual testing
+        env:
+          NGROK_AUTHTOKEN: ${{ secrets.NGROK_AUTHTOKEN }}
         run: |
           # unzip이 없으면 설치
           which unzip > /dev/null || sudo apt-get install -y unzip
 
-          # ARM64용 ngrok 다운로드 (라즈베리파이)
+          # ARM64용 ngrok 다운로드
           wget -q https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-arm64.zip
           unzip -q ngrok-v3-stable-linux-arm64.zip
           chmod +x ngrok
+
+          # authtoken 설정
+          if [ -z "$NGROK_AUTHTOKEN" ]; then
+            echo "⚠️  NGROK_AUTHTOKEN not set - ngrok will fail"
+            echo "Please add NGROK_AUTHTOKEN to GitHub Secrets"
+            echo "Get token: https://dashboard.ngrok.com/get-started/your-authtoken"
+          else
+            ./ngrok config add-authtoken "$NGROK_AUTHTOKEN"
+          fi
 
           # ngrok 실행 (백그라운드)
           ./ngrok http 80 --log=stdout > /tmp/ngrok.log 2>&1 &
@@ -174,9 +185,9 @@ jobs:
           echo "✅ ngrok started with PID: $NGROK_PID"
 
           # 초기 로그 확인
-          sleep 2
-          echo "📋 ngrok initial logs:"
-          head -20 /tmp/ngrok.log || echo "No log file"
+          sleep 3
+          echo "📋 ngrok logs:"
+          head -30 /tmp/ngrok.log || echo "No log file"
 
           # ngrok이 시작될 때까지 대기 (최대 20초)
           for i in $(seq 1 20); do
@@ -184,9 +195,8 @@ jobs:
 
             # ngrok 프로세스 확인
             if ! ps -p $NGROK_PID > /dev/null 2>&1; then
-              echo "❌ ngrok process not running!"
-              echo "Logs:"
-              tail -50 /tmp/ngrok.log
+              echo "❌ ngrok process died"
+              tail -20 /tmp/ngrok.log
               break
             fi
 
@@ -199,27 +209,22 @@ jobs:
           done
 
           echo ""
-          echo "📋 Getting ngrok URL:"
+          echo "📋 Getting ngrok URL..."
           RESPONSE=$(curl -s http://localhost:4040/api/tunnels 2>&1)
-          echo "$RESPONSE" | head -50
+          echo "$RESPONSE" | head -30
           echo ""
 
-          # JSON에서 URL 추출
-          NGROK_URL=""
-          if echo "$RESPONSE" | grep -q "public_url"; then
-            NGROK_URL=$(echo "$RESPONSE" | grep -o 'https://[^"]*' | head -1)
-          fi
+          # URL 추출
+          NGROK_URL=$(echo "$RESPONSE" | grep -o 'https://[^"]*' | head -1)
 
           if [ -z "$NGROK_URL" ]; then
-            echo "❌ Failed to extract ngrok URL"
-            echo "Full logs:"
+            echo "❌ Failed to get URL"
             cat /tmp/ngrok.log
-            NGROK_URL="https://failed"
+            NGROK_URL="http://localhost (manual testing not available)"
           fi
 
           echo "NGROK_URL=$NGROK_URL" >> $GITHUB_ENV
           echo "✅ URL: $NGROK_URL"
-          echo ""
 
       - name: Wait for manual testing verification
         run: |
