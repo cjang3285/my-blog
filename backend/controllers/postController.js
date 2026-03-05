@@ -1,5 +1,6 @@
 import {
   getAllPosts,
+  getPostsPaginated,
   getFeaturedPosts,
   getPostBySlug,
   getPostById,
@@ -8,11 +9,18 @@ import {
   deletePost as deletePostService
 } from '../services/postService.js';
 
-// GET /api/posts - Get all posts
+// GET /api/posts - Get all posts (or paginated if ?page= is provided)
 export const getPosts = async (req, res) => {
   try {
-    const posts = await getAllPosts();
-    res.json(posts);
+    if (req.query.page !== undefined) {
+      const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+      const limit = Math.min(100, parseInt(req.query.limit, 10) || 10);
+      const result = await getPostsPaginated(page, limit);
+      res.json(result);
+    } else {
+      const posts = await getAllPosts();
+      res.json(posts);
+    }
   } catch (error) {
     console.error('Error fetching posts:', error);
     res.status(500).json({ error: 'Failed to fetch posts' });
