@@ -1,6 +1,30 @@
 import pool from '../config/db.js';
 import { renderMarkdown, hasMathExpression } from '../utils/markdown.js';
 
+// Get posts with pagination
+export const getPostsPaginated = async (page, limit) => {
+  try {
+    const offset = (page - 1) * limit;
+    const [rowsResult, countResult] = await Promise.all([
+      pool.query(
+        'SELECT * FROM posts ORDER BY date DESC, id DESC LIMIT $1 OFFSET $2',
+        [limit, offset]
+      ),
+      pool.query('SELECT COUNT(*) FROM posts'),
+    ]);
+    const total = parseInt(countResult.rows[0].count, 10);
+    return {
+      posts: rowsResult.rows,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+    };
+  } catch (error) {
+    console.error('Error in getPostsPaginated service:', error);
+    throw error;
+  }
+};
+
 // Get all posts (ordered by date descending)
 export const getAllPosts = async () => {
   try {
