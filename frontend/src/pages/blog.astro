@@ -4,20 +4,41 @@ import Layout from '../layouts/Layout.astro';
 const pageTitle = '글 - 장찬욱';
 ---
 
-<Layout title={pageTitle} description="모든 블로그 글 보기">
-	<div>
-		<div class="flex justify-between items-center mb-3">
-			<h1 class="text-2xl font-semibold text-warm-100 tracking-tight">글</h1>
-			<button id="add-post-btn" style="display: none;" class="px-3 py-1.5 bg-accent hover:bg-accent-hover text-warm-950 rounded text-sm font-medium transition-colors duration-300">
-				+ 새 글 작성
-			</button>
-		</div>
-		<p class="text-warm-500 text-sm mb-10">
-			배운 것들을 기록하고 공유합니다.
-		</p>
+<Layout title={pageTitle} description="모든 블로그 글 보기" wide={true}>
+	<div class="flex gap-12">
+		<!-- Left sidebar: tag filter (desktop) -->
+		<aside class="hidden lg:block w-44 flex-shrink-0">
+			<div class="sticky top-24">
+				<p class="text-xs font-medium text-warm-600 uppercase tracking-widest mb-3">태그</p>
+				<nav id="tag-list" class="flex flex-col gap-0.5">
+					<!-- populated by JS -->
+				</nav>
+			</div>
+		</aside>
 
-		<div id="posts-container">
-			<!-- Posts will be loaded here -->
+		<!-- Main content -->
+		<div class="flex-1 min-w-0">
+			<div class="flex justify-between items-center mb-3">
+				<div>
+					<h1 class="text-2xl font-semibold text-warm-100 tracking-tight">글</h1>
+					<p id="active-tag-label" class="hidden text-sm text-accent mt-0.5"></p>
+				</div>
+				<button id="add-post-btn" style="display: none;" class="px-3 py-1.5 bg-accent hover:bg-accent-hover text-warm-950 rounded text-sm font-medium transition-colors duration-300">
+					+ 새 글 작성
+				</button>
+			</div>
+			<p class="text-warm-500 text-sm mb-6">
+				배운 것들을 기록하고 공유합니다.
+			</p>
+
+			<!-- Mobile tag strip -->
+			<div id="tag-strip-mobile" class="lg:hidden flex gap-2 overflow-x-auto pb-2 mb-6 -mx-6 px-6">
+				<!-- populated by JS -->
+			</div>
+
+			<div id="posts-container">
+				<!-- Posts will be loaded here -->
+			</div>
 		</div>
 	</div>
 
@@ -96,71 +117,179 @@ const pageTitle = '글 - 장찬욱';
 	let isAuthenticated = false;
 	let currentPage = 1;
 	let totalPages = 1;
+	let activeTag: string | null = null;
 
-	// Check authentication status
+	// Read initial tag from URL
+	const urlParams = new URLSearchParams(window.location.search);
+	activeTag = urlParams.get('tag');
+
 	async function checkAuth() {
 		try {
-			const response = await fetch(`${API_URL}/api/auth/check`, {
-				credentials: 'include'
-			});
+			const response = await fetch(`${API_URL}/api/auth/check`, { credentials: 'include' });
 			const data = await response.json();
 			isAuthenticated = data.isAuthenticated;
-
 			const addBtn = document.getElementById('add-post-btn');
-			if (addBtn) {
-				addBtn.style.display = isAuthenticated ? 'block' : 'none';
-			}
-		} catch (error) {
-			console.error('Auth check failed:', error);
+			if (addBtn) addBtn.style.display = isAuthenticated ? 'block' : 'none';
+		} catch {
 			isAuthenticated = false;
 		}
 	}
 
+	async function loadTags() {
+		try {
+			const response = await fetch(`${API_URL}/api/posts/tags`);
+			if (!response.ok) return;
+			const tags: { tag: string; count: string }[] = await response.json();
+			renderTagSidebar(tags);
+			renderTagStripMobile(tags);
+		} catch (error) {
+			console.error('[BLOG] Failed to load tags:', error);
+		}
+	}
+
+	function tagButtonClass(tag: string, mobile = false) {
+		const isActive = activeTag === tag;
+		const base = mobile
+			? 'flex-shrink-0 px-3 py-1 rounded-full text-xs transition-colors border '
+			: 'flex items-center justify-between w-full text-left text-sm py-1.5 px-2 rounded transition-colors ';
+		const active = mobile
+			? 'bg-accent/20 text-accent border-accent/40'
+			: 'bg-accent/10 text-accent font-medium';
+		const inactive = mobile
+			? 'text-warm-500 border-warm-800 hover:text-warm-200 hover:border-warm-600'
+			: 'text-warm-500 hover:text-warm-200 hover:bg-warm-800/60';
+		return base + (isActive ? active : inactive);
+	}
+
+	function renderTagSidebar(tags: { tag: string; count: string }[]) {
+		const list = document.getElementById('tag-list');
+		if (!list) return;
+
+		const allBtn = document.createElement('button');
+		allBtn.className = tagButtonClass('', false).replace(
+			activeTag === null ? 'text-warm-500 hover:text-warm-200 hover:bg-warm-800/60' : '',
+			activeTag === null ? 'bg-accent/10 text-accent font-medium' : 'text-warm-500 hover:text-warm-200 hover:bg-warm-800/60'
+		);
+		allBtn.innerHTML = `<span>전체</span><span class="text-xs text-warm-700 tabular-nums"></span>`;
+		if (activeTag === null) {
+			allBtn.className = 'flex items-center justify-between w-full text-left text-sm py-1.5 px-2 rounded transition-colors bg-accent/10 text-accent font-medium';
+		} else {
+			allBtn.className = 'flex items-center justify-between w-full text-left text-sm py-1.5 px-2 rounded transition-colors text-warm-500 hover:text-warm-200 hover:bg-warm-800/60';
+		}
+		allBtn.addEventListener('click', () => selectTag(null));
+		list.appendChild(allBtn);
+
+		tags.forEach(({ tag, count }) => {
+			const btn = document.createElement('button');
+			btn.className = activeTag === tag
+				? 'flex items-center justify-between w-full text-left text-sm py-1.5 px-2 rounded transition-colors bg-accent/10 text-accent font-medium'
+				: 'flex items-center justify-between w-full text-left text-sm py-1.5 px-2 rounded transition-colors text-warm-500 hover:text-warm-200 hover:bg-warm-800/60';
+			btn.innerHTML = `<span class="truncate">${tag}</span><span class="text-xs text-warm-700 tabular-nums flex-shrink-0 ml-1">${count}</span>`;
+			btn.addEventListener('click', () => selectTag(tag));
+			list.appendChild(btn);
+		});
+	}
+
+	function renderTagStripMobile(tags: { tag: string; count: string }[]) {
+		const strip = document.getElementById('tag-strip-mobile');
+		if (!strip) return;
+
+		const allBtn = document.createElement('button');
+		allBtn.className = activeTag === null
+			? 'flex-shrink-0 px-3 py-1 rounded-full text-xs transition-colors border bg-accent/20 text-accent border-accent/40'
+			: 'flex-shrink-0 px-3 py-1 rounded-full text-xs transition-colors border text-warm-500 border-warm-800 hover:text-warm-200 hover:border-warm-600';
+		allBtn.textContent = '전체';
+		allBtn.addEventListener('click', () => selectTag(null));
+		strip.appendChild(allBtn);
+
+		tags.forEach(({ tag }) => {
+			const btn = document.createElement('button');
+			btn.className = activeTag === tag
+				? 'flex-shrink-0 px-3 py-1 rounded-full text-xs transition-colors border bg-accent/20 text-accent border-accent/40'
+				: 'flex-shrink-0 px-3 py-1 rounded-full text-xs transition-colors border text-warm-500 border-warm-800 hover:text-warm-200 hover:border-warm-600';
+			btn.textContent = tag;
+			btn.addEventListener('click', () => selectTag(tag));
+			strip.appendChild(btn);
+		});
+	}
+
+	function selectTag(tag: string | null) {
+		activeTag = tag;
+		currentPage = 1;
+
+		// Update URL without reload
+		const url = new URL(window.location.href);
+		if (tag) url.searchParams.set('tag', tag);
+		else url.searchParams.delete('tag');
+		window.history.pushState({}, '', url);
+
+		// Re-render sidebar active states
+		const list = document.getElementById('tag-list');
+		const strip = document.getElementById('tag-strip-mobile');
+		if (list) list.innerHTML = '';
+		if (strip) strip.innerHTML = '';
+		loadTags();
+
+		// Update active tag label
+		const label = document.getElementById('active-tag-label');
+		if (label) {
+			if (tag) {
+				label.textContent = `#${tag}`;
+				label.classList.remove('hidden');
+			} else {
+				label.classList.add('hidden');
+			}
+		}
+
+		loadPosts(1);
+	}
+
 	async function loadPosts(page = 1) {
 		try {
-			const response = await fetch(
-				`${API_URL}/api/posts?page=${page}&limit=${POSTS_PER_PAGE}`
-			);
+			let url = `${API_URL}/api/posts?page=${page}&limit=${POSTS_PER_PAGE}`;
+			if (activeTag) url += `&tag=${encodeURIComponent(activeTag)}`;
 
-			if (!response.ok) {
-				throw new Error(`HTTP ${response.status}`);
-			}
+			const response = await fetch(url);
+			if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
 			const data = await response.json();
-			const posts = data.posts;
 			currentPage = data.page;
 			totalPages = data.totalPages;
 
 			const container = document.getElementById('posts-container');
 			if (!container) return;
 
-			if (posts.length === 0) {
+			if (data.posts.length === 0) {
 				container.innerHTML = `
 					<div class="text-center py-20">
-						<p class="text-warm-500 text-sm mb-2">아직 글이 없습니다.</p>
-						<p class="text-warm-600 text-xs">새 글을 작성해보세요!</p>
+						<p class="text-warm-500 text-sm">해당 태그의 글이 없습니다.</p>
 					</div>
 				`;
 				renderPagination();
 				return;
 			}
 
-			container.innerHTML = posts.map((post: any) => `
-				<article class="group py-6 border-b border-warm-800/50">
-					<div class="flex items-center gap-2 text-sm text-warm-500 mb-2">
-						<time>${new Date(post.date).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}</time>
+			container.innerHTML = data.posts.map((post: any) => `
+				<article class="post-item py-6 border-b border-warm-800/50 pl-6 -ml-6">
+					<div class="flex items-center gap-2 text-xs text-warm-600 mb-2 flex-wrap">
+						<time class="tabular-nums">${new Date(post.date).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}</time>
 						${post.tags && post.tags.length > 0 ? `
-							<span class="text-warm-700">/</span>
-							<div class="flex gap-1.5">
-								${post.tags.map((tag: string) => `<span class="text-warm-500">${tag}</span>`).join('')}
+							<span class="text-warm-700">·</span>
+							<div class="flex gap-1.5 flex-wrap">
+								${post.tags.map((tag: string) => `
+									<button
+										class="hover:text-accent transition-colors ${tag === activeTag ? 'text-accent font-medium' : 'text-warm-600'}"
+										onclick="window.__selectTag('${tag}')"
+									>${tag}</button>
+								`).join('')}
 							</div>
 						` : ''}
-						${post.featured ? '<span class="ml-auto px-2 py-0.5 bg-accent/20 text-accent text-xs rounded">Featured</span>' : ''}
+						${post.featured ? '<span class="ml-auto px-2 py-0.5 bg-accent/15 text-accent text-xs rounded-full">Featured</span>' : ''}
 					</div>
-					<h3 class="text-lg font-medium text-warm-100 mb-1.5">
-						<a href="/blog/${post.slug}" class="hover:text-accent transition-colors duration-300">${post.title}</a>
+					<h3 class="text-base font-semibold text-warm-100 mb-1.5 leading-snug">
+						<a href="/blog/${post.slug}" class="hover:text-accent transition-colors duration-200">${post.title}</a>
 					</h3>
-					<p class="text-warm-400 text-sm">${post.excerpt}</p>
+					<p class="text-warm-500 text-sm leading-relaxed line-clamp-2">${post.excerpt}</p>
 				</article>
 			`).join('');
 
@@ -172,17 +301,19 @@ const pageTitle = '글 - 장찬욱';
 				container.innerHTML = `
 					<div class="text-center py-20">
 						<p class="text-red-400 text-sm mb-2">글을 불러오는데 실패했습니다.</p>
-						<p class="text-warm-600 text-xs">에러: ${error.message}</p>
+						<p class="text-warm-600 text-xs">${error.message}</p>
 					</div>
 				`;
 			}
 		}
 	}
 
+	// Expose selectTag for inline onclick handlers in post list
+	(window as any).__selectTag = selectTag;
+
 	function renderPagination() {
 		const existing = document.getElementById('pagination');
 		if (existing) existing.remove();
-
 		if (totalPages <= 1) return;
 
 		const nav = document.createElement('nav');
@@ -190,44 +321,30 @@ const pageTitle = '글 - 장찬욱';
 		nav.className = 'flex items-center justify-center gap-1 mt-10';
 		nav.setAttribute('aria-label', '페이지 탐색');
 
-		// 이전 버튼
 		const prevBtn = document.createElement('button');
 		prevBtn.textContent = '←';
-		prevBtn.className =
-			'px-3 py-1.5 rounded text-sm transition-colors ' +
-			(currentPage === 1
-				? 'text-warm-700 cursor-not-allowed'
-				: 'text-warm-400 hover:text-warm-100 hover:bg-warm-800');
+		prevBtn.className = 'px-3 py-1.5 rounded text-sm transition-colors ' +
+			(currentPage === 1 ? 'text-warm-700 cursor-not-allowed' : 'text-warm-400 hover:text-warm-100 hover:bg-warm-800');
 		prevBtn.disabled = currentPage === 1;
 		prevBtn.addEventListener('click', () => goToPage(currentPage - 1));
-
 		nav.appendChild(prevBtn);
 
-		// 페이지 번호 버튼
 		for (let p = 1; p <= totalPages; p++) {
 			const btn = document.createElement('button');
 			btn.textContent = String(p);
-			btn.className =
-				'px-3 py-1.5 rounded text-sm transition-colors ' +
-				(p === currentPage
-					? 'bg-accent text-warm-950 font-medium'
-					: 'text-warm-400 hover:text-warm-100 hover:bg-warm-800');
+			btn.className = 'px-3 py-1.5 rounded text-sm transition-colors ' +
+				(p === currentPage ? 'bg-accent text-warm-950 font-medium' : 'text-warm-400 hover:text-warm-100 hover:bg-warm-800');
 			btn.disabled = p === currentPage;
 			btn.addEventListener('click', () => goToPage(p));
 			nav.appendChild(btn);
 		}
 
-		// 다음 버튼
 		const nextBtn = document.createElement('button');
 		nextBtn.textContent = '→';
-		nextBtn.className =
-			'px-3 py-1.5 rounded text-sm transition-colors ' +
-			(currentPage === totalPages
-				? 'text-warm-700 cursor-not-allowed'
-				: 'text-warm-400 hover:text-warm-100 hover:bg-warm-800');
+		nextBtn.className = 'px-3 py-1.5 rounded text-sm transition-colors ' +
+			(currentPage === totalPages ? 'text-warm-700 cursor-not-allowed' : 'text-warm-400 hover:text-warm-100 hover:bg-warm-800');
 		nextBtn.disabled = currentPage === totalPages;
 		nextBtn.addEventListener('click', () => goToPage(currentPage + 1));
-
 		nav.appendChild(nextBtn);
 
 		document.getElementById('posts-container')?.after(nav);
@@ -246,23 +363,18 @@ const pageTitle = '글 - 장찬욱';
 	const addBtn = document.getElementById('add-post-btn');
 	const cancelBtn = document.getElementById('cancel-btn');
 
-	addBtn?.addEventListener('click', () => {
-		openNewModal();
-	});
-
+	addBtn?.addEventListener('click', openNewModal);
 	cancelBtn?.addEventListener('click', closeModal);
 
 	function openNewModal() {
 		editingPostId = null;
 		if (modalTitle) modalTitle.textContent = '새 글 작성';
-
 		(document.getElementById('post-title') as HTMLInputElement).value = '';
 		(document.getElementById('post-excerpt') as HTMLTextAreaElement).value = '';
 		(document.getElementById('post-content') as HTMLTextAreaElement).value = '';
 		(document.getElementById('post-tags') as HTMLInputElement).value = '';
 		(document.getElementById('post-featured') as HTMLInputElement).checked = false;
 		(document.getElementById('post-id') as HTMLInputElement).value = '';
-
 		modal?.classList.remove('hidden');
 	}
 
@@ -273,13 +385,11 @@ const pageTitle = '글 - 장찬욱';
 
 	form?.addEventListener('submit', async (e) => {
 		e.preventDefault();
-
 		const title = (document.getElementById('post-title') as HTMLInputElement).value;
 		const excerpt = (document.getElementById('post-excerpt') as HTMLTextAreaElement).value;
 		const content = (document.getElementById('post-content') as HTMLTextAreaElement).value;
 		const tagsInput = (document.getElementById('post-tags') as HTMLInputElement).value;
 		const featured = (document.getElementById('post-featured') as HTMLInputElement).checked;
-
 		const tags = tagsInput ? tagsInput.split(',').map(t => t.trim()).filter(t => t) : [];
 
 		try {
@@ -295,10 +405,8 @@ const pageTitle = '글 - 장찬욱';
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({ title, excerpt, content, tags, featured })
 				});
-				// 새 글은 항상 1페이지(최신)에 표시
 				currentPage = 1;
 			}
-
 			await loadPosts(currentPage);
 			closeModal();
 		} catch (error) {
@@ -307,9 +415,20 @@ const pageTitle = '글 - 장찬욱';
 		}
 	});
 
-	// Load initial data
+	// Init
 	(async () => {
 		await checkAuth();
+		await loadTags();
+
+		// Set active tag label if tag is in URL
+		if (activeTag) {
+			const label = document.getElementById('active-tag-label');
+			if (label) {
+				label.textContent = `#${activeTag}`;
+				label.classList.remove('hidden');
+			}
+		}
+
 		await loadPosts(1);
 	})();
 </script>

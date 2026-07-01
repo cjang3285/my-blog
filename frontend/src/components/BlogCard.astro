@@ -15,14 +15,14 @@ const formattedDate = new Date(date).toLocaleDateString('ko-KR', {
 	day: 'numeric'
 });
 ---
-<article class="group py-6 border-b border-warm-800/50 last:border-b-0">
-	<a href={`/blog/${slug}`} class="block space-y-2">
-		<div class="flex items-center gap-2 text-sm text-warm-500">
+<article class="group py-5 border-b border-warm-800/50 last:border-b-0">
+	<a href={`/blog/${slug}`} class="block space-y-1.5">
+		<div class="flex items-center gap-2 text-xs text-warm-600">
 			<time datetime={date}>{formattedDate}</time>
 			{tags.length > 0 && (
 				<>
-					<span class="text-warm-700">/</span>
-					<div class="flex gap-1.5">
+					<span class="text-warm-700">·</span>
+					<div class="flex gap-1.5 flex-wrap">
 						{tags.map(tag => (
 							<span class="text-warm-500">{tag}</span>
 						))}
@@ -30,10 +30,10 @@ const formattedDate = new Date(date).toLocaleDateString('ko-KR', {
 				</>
 			)}
 		</div>
-		<h3 class="text-lg font-medium text-warm-100 group-hover:text-accent transition-colors duration-300">
+		<h3 class="text-[15px] font-semibold text-warm-100 group-hover:text-accent transition-colors duration-200 leading-snug">
 			{title}
 		</h3>
-		<p class="text-warm-400 text-sm leading-relaxed line-clamp-2">
+		<p class="text-warm-500 text-sm leading-relaxed line-clamp-2">
 			{excerpt}
 		</p>
 	</a>

@@ -4,18 +4,31 @@ import {
   getFeaturedPosts,
   getPostBySlug,
   getPostById,
+  getAllTags,
   createPost,
   updatePost as updatePostService,
   deletePost as deletePostService
 } from '../services/postService.js';
 
-// GET /api/posts - Get all posts (or paginated if ?page= is provided)
+// GET /api/posts/tags - Get all tags with counts
+export const getTags = async (req, res) => {
+  try {
+    const tags = await getAllTags();
+    res.json(tags);
+  } catch (error) {
+    console.error('Error fetching tags:', error);
+    res.status(500).json({ error: 'Failed to fetch tags' });
+  }
+};
+
+// GET /api/posts - Get all posts (or paginated if ?page= is provided, optional ?tag= filter)
 export const getPosts = async (req, res) => {
   try {
+    const tag = req.query.tag || null;
     if (req.query.page !== undefined) {
       const page = Math.max(1, parseInt(req.query.page, 10) || 1);
       const limit = Math.min(100, parseInt(req.query.limit, 10) || 10);
-      const result = await getPostsPaginated(page, limit);
+      const result = await getPostsPaginated(page, limit, tag);
       res.json(result);
     } else {
       const posts = await getAllPosts();

@@ -1,17 +1,25 @@
 import pool from '../config/db.js';
 import { renderMarkdown, hasMathExpression } from '../utils/markdown.js';
 
-// Get posts with pagination
-export const getPostsPaginated = async (page, limit) => {
+// Get posts with pagination (optional tag filter)
+export const getPostsPaginated = async (page, limit, tag = null) => {
   try {
     const offset = (page - 1) * limit;
-    const [rowsResult, countResult] = await Promise.all([
-      pool.query(
-        'SELECT * FROM posts ORDER BY date DESC, id DESC LIMIT $1 OFFSET $2',
-        [limit, offset]
-      ),
-      pool.query('SELECT COUNT(*) FROM posts'),
-    ]);
+    const [rowsResult, countResult] = tag
+      ? await Promise.all([
+          pool.query(
+            'SELECT * FROM posts WHERE $1 = ANY(tags) ORDER BY date DESC, id DESC LIMIT $2 OFFSET $3',
+            [tag, limit, offset]
+          ),
+          pool.query('SELECT COUNT(*) FROM posts WHERE $1 = ANY(tags)', [tag]),
+        ])
+      : await Promise.all([
+          pool.query(
+            'SELECT * FROM posts ORDER BY date DESC, id DESC LIMIT $1 OFFSET $2',
+            [limit, offset]
+          ),
+          pool.query('SELECT COUNT(*) FROM posts'),
+        ]);
     const total = parseInt(countResult.rows[0].count, 10);
     return {
       posts: rowsResult.rows,
@@ -21,6 +29,23 @@ export const getPostsPaginated = async (page, limit) => {
     };
   } catch (error) {
     console.error('Error in getPostsPaginated service:', error);
+    throw error;
+  }
+};
+
+// Get all unique tags with post counts
+export const getAllTags = async () => {
+  try {
+    const result = await pool.query(
+      `SELECT unnest(tags) AS tag, COUNT(*) AS count
+       FROM posts
+       WHERE tags != '{}'
+       GROUP BY tag
+       ORDER BY count DESC, tag ASC`
+    );
+    return result.rows;
+  } catch (error) {
+    console.error('Error in getAllTags service:', error);
     throw error;
   }
 };

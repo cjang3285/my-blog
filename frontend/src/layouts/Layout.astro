@@ -4,12 +4,13 @@ import '../styles/global.css'
 interface Props {
 	title?: string;
 	description?: string;
+	wide?: boolean;
 }
 
-const { title = '장찬욱', description = '개발자의 학습과 성장 기록' } = Astro.props;
+const { title = '장찬욱', description = '개발자의 학습과 성장 기록', wide = false } = Astro.props;
 ---
 <!doctype html>
-<html lang="ko" class="dark">
+<html lang="ko">
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width" />
@@ -18,28 +19,45 @@ const { title = '장찬욱', description = '개발자의 학습과 성장 기록
 		<meta name="generator" content={Astro.generator} />
 		<title>{title}</title>
 	</head>
-	<body class="bg-warm-950 text-warm-200">
-		<nav class="border-b border-warm-800/60">
-			<div class="max-w-2xl mx-auto px-6 py-5 flex justify-between items-center">
-				<a href="/" class="text-lg text-warm-100 font-semibold tracking-tight hover:text-accent transition-colors">
-					장찬욱
+	<body class="bg-warm-950 text-warm-300">
+		<nav id="main-nav" class="sticky top-0 z-40 bg-warm-950/95 backdrop-blur-md border-b border-warm-800/60 transition-shadow duration-200">
+			<div class="max-w-2xl mx-auto px-6 py-4 flex justify-between items-center">
+				<a href="/" class="text-warm-100 hover:text-accent transition-colors duration-200" aria-label="홈으로">
+					<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+						<rect x="2" y="3" width="20" height="5.5" rx="1.2"/>
+						<rect x="2" y="10.5" width="20" height="5.5" rx="1.2"/>
+						<rect x="2" y="18" width="20" height="5.5" rx="1.2"/>
+						<circle cx="18.5" cy="5.75" r="0.9" fill="currentColor" stroke="none"/>
+						<circle cx="18.5" cy="13.25" r="0.9" fill="currentColor" stroke="none"/>
+						<circle cx="18.5" cy="20.75" r="0.9" fill="currentColor" stroke="none"/>
+					</svg>
 				</a>
-				<div class="flex gap-7 text-sm text-warm-400">
-					<a href="/blog" class="hover:text-warm-100 transition-colors duration-300">글</a>
-					<a href="/projects" class="hover:text-warm-100 transition-colors duration-300">프로젝트</a>
-					<a href="/about" class="hover:text-warm-100 transition-colors duration-300">소개</a>
+				<div class="flex gap-6 text-sm text-warm-500">
+					<a href="/blog" class="hover:text-warm-200 transition-colors duration-200">글</a>
+					<a href="/projects" class="hover:text-warm-200 transition-colors duration-200">프로젝트</a>
+					<a href="/about" class="hover:text-warm-200 transition-colors duration-200">소개</a>
 				</div>
 			</div>
 		</nav>
 
-		<main class="max-w-2xl mx-auto px-6 py-16">
+		<main class={`${wide ? 'max-w-4xl' : 'max-w-2xl'} mx-auto px-6 py-14`}>
 			<slot />
 		</main>
 
-		<footer class="border-t border-warm-800/40">
-			<div class="max-w-2xl mx-auto px-6 py-10 text-center text-sm text-warm-600">
-				<p>&copy; 2025 장찬욱</p>
+		<footer class="border-t border-warm-800/50 mt-8">
+			<div class="max-w-2xl mx-auto px-6 py-10 flex justify-between items-center text-sm text-warm-600">
+				<span class="font-medium text-warm-500">장찬욱</span>
+				<span>&copy; 2026</span>
 			</div>
 		</footer>
 	</body>
 </html>
+
+<script>
+	const nav = document.getElementById('main-nav');
+	const onScroll = () => {
+		if (window.scrollY > 8) nav?.classList.add('scrolled');
+		else nav?.classList.remove('scrolled');
+	};
+	window.addEventListener('scroll', onScroll, { passive: true });
+</script>

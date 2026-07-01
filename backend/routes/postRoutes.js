@@ -1,11 +1,12 @@
 import express from 'express';
-import { getPosts, getFeatured, getPost, addPost, updatePost, deletePost } from '../controllers/postController.js';
+import { getPosts, getTags, getFeatured, getPost, addPost, updatePost, deletePost } from '../controllers/postController.js';
 import { requireAuth } from '../middleware/auth.js';
 
 const router = express.Router();
 
 // Public routes
 router.get('/', getPosts);
+router.get('/tags', getTags);
 router.get('/featured', getFeatured);
 router.get('/:slug', getPost);
 
