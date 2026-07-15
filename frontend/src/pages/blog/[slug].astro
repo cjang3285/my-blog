@@ -152,11 +152,11 @@ const API_URL = import.meta.env.PUBLIC_API_URL || '';
           <div class="mb-10">
             <a href="/blog" class="text-warm-500 hover:text-accent text-sm transition-colors duration-300 mb-6 block">&larr; 모든 글 목록으로</a>
             <h1 class="text-2xl font-semibold text-warm-100 mb-3 tracking-tight">${post.title}</h1>
-            <div class="flex items-center gap-2 text-sm text-warm-500 mb-4">
+            <div class="flex items-center gap-2 text-sm text-warm-500 mb-4 flex-wrap">
               <time>${new Date(post.date).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}</time>
               ${post.tags && post.tags.length > 0 ? `
                 <span class="text-warm-700">/</span>
-                <div class="flex gap-1.5">
+                <div class="flex gap-1.5 flex-wrap">
                   ${post.tags.map(tag => `<span class="text-warm-500">${tag}</span>`).join('')}
                 </div>
               ` : ''}
@@ -175,7 +175,7 @@ const API_URL = import.meta.env.PUBLIC_API_URL || '';
           <div class="text-warm-300 leading-relaxed">
             <p class="text-warm-400 italic mb-8">${post.excerpt}</p>
             <div class="w-full h-px bg-warm-800/50 my-8"></div>
-            <div id="post-body" class="prose prose-invert max-w-none prose-p:leading-relaxed"></div>
+            <div id="post-body" class="prose max-w-none prose-p:leading-relaxed"></div>
           </div>
         </article>
       `;
