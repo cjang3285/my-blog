@@ -1,7 +1,8 @@
 name: Deploy to Production
 
-# master 브랜치에 PR이 merge된 후 실행
-# GitHub Environment "production" 에서 수동 승인 후 Node1에 배포
+# master 브랜치에 push된 후 실행
+# GitHub Environment "production" 에서 수동 승인 후 raspiWorker1(172.30.1.94)에 배포
+# 러너가 배포 대상 서버(raspiWorker1) 위에서 직접 실행되므로 SSH 홉 없이 로컬에서 배포한다.
 on:
   push:
     branches: [master]
@@ -13,20 +14,16 @@ on:
 
 jobs:
   deploy:
-    name: Deploy to Node2 (worker1)
-    runs-on: [self-hosted, node3]
+    name: Deploy to raspiWorker1
+    runs-on: [self-hosted, raspiWorker1]
     # ↓ GitHub Settings > Environments > "production" 에서 required reviewers 설정 필요
     environment: production
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Deploy to Node2 via SSH
+      - name: Deploy
         run: |
-          ssh -i ~/.ssh/deploy_key \
-            -o StrictHostKeyChecking=yes \
-            -o ConnectTimeout=30 \
-            jcw@172.30.1.94 \
-            "cd ~/my-blog && git pull origin master && bash deployment/redeploy.sh"
+          cd ~/my-blog
+          git pull origin master
+          bash deployment/redeploy.sh
 
       - name: Notify deployment result
         if: always()
@@ -34,5 +31,5 @@ jobs:
           if [ "${{ job.status }}" = "success" ]; then
             echo "::notice::배포 성공: $(git log -1 --pretty='%h %s')"
           else
-            echo "::error::배포 실패 — Node2 서버 상태를 확인하세요"
+            echo "::error::배포 실패 — raspiWorker1 서버 상태를 확인하세요"
           fi

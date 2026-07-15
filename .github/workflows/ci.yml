@@ -18,7 +18,7 @@ jobs:
   # ────────────────────────────────────────────
   web-page-tests:
     name: Web Page Tests (Playwright)
-    runs-on: [self-hosted, node3]
+    runs-on: [self-hosted, raspiWorker1]
     steps:
       - uses: actions/checkout@v4
 
