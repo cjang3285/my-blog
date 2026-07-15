@@ -11,6 +11,7 @@ on:
       - 'frontend/**'
       - 'ecosystem.config.cjs'
       - 'deployment/**'
+  workflow_dispatch:
 
 jobs:
   deploy:
