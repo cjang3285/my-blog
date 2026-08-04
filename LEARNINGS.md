@@ -100,6 +100,134 @@ ss -tlnp | grep -E ":3000|:4321"   # -> 127.0.0.1:3000, 127.0.0.1:4321 (이전: 
 3. `ufw status`가 inactive라고 규칙이 비어있다는 뜻은 아니다 — `ufw show added`로 누적된 규칙을 먼저 확인한다.
 4. 원격 서버의 방화벽 활성화처럼 "잘못되면 스스로 들어갈 방법이 없어지는" 액션은, 지금 실제로 어떤 경로로 접속해 있는지 확인한 뒤 그 경로를 반드시 허용 목록에 넣고 진행한다.
 
+## 2026-07-14 ~ 07-18 라즈베리파이 반복 재부팅/전원 꺼짐 — 원인이 세 개였다
+
+### 배경
+
+집에서 돌리는 라즈베리파이가 며칠 간격으로 알 수 없이 재부팅되거나, 전원이 내려간 것처럼 멈추는 증상이 반복됨. 하나의 원인을 고쳐도 증상이 완전히 사라지지 않아서, 조사해보니 서로 무관한 원인 세 개가 겹쳐 있었음.
+
+### 원인 1: EEPROM `USB_MSD_STARTUP_DELAY` — `sudo reboot`가 부팅 실패로 이어짐
+
+카드리더 경유 USB 저장장치(`/dev/sda`)로 부팅하는 구성에서 `sudo reboot`를 실행하면 "can't open file"로 부팅이 멈추고, 전원선을 뽑았다 꽂아야만 정상 부팅됨. EEPROM `USB_MSD_STARTUP_DELAY`가 기본값 0이라, 소프트 리부트로는 USB 카드리더가 완전히 재초기화되지 않은 상태에서 1단계 부트로더가 부팅 파일을 찾다 실패하는 것. `rpi-eeprom-config`로 `USB_MSD_STARTUP_DELAY=2`를 적용했지만 완전히 해결되지는 않았음.
+
+**현재 운영 방침**: 카드리더를 거치지 않는 USB SSD로 전체 클론하기 전까지는 **`sudo reboot`를 쓰지 않고, 재부팅이 필요하면 전원을 물리적으로 뽑았다 꽂는다.**
+
+### 원인 2: crontab + Ansible이 걸어둔 자동 재부팅
+
+매일 새벽 1시 `crontab`이 `~/cluster-admin/ansible/run-update.sh`를 실행했는데, 이 스크립트가 호출하는 Ansible playbook에 다음 로직이 있었음.
+
+```yaml
+- name: Check if reboot is required
+  stat:
+    path: /var/run/reboot-required
+  register: reboot_required
+- name: reboot
+  reboot: ...
+  when: reboot_required.stat.exists
+```
+
+`unattended-upgrades`는 이미 꺼둔 상태였지만, 이 crontab+playbook 조합이 `/var/run/reboot-required` 파일 존재 여부만으로 매일 자동 재부팅을 트리거하고 있었음. `cluster-admin` 폴더 자체는 이미 삭제된 상태라 당장은 무해했지만, 폴더가 재생성되면 언제든 재발할 수 있는 상태였음. 해결: 재부팅을 트리거하던 crontab 항목 삭제.
+
+### 원인 3: systemd 좀비 서비스의 무한 재시작 루프
+
+`journalctl`로 전체 서비스 이력을 훑어서 재시작 횟수가 비정상적인 유닛을 찾음. `learningetl.service`("LearningETL Daemon")가 하루 약 8,433번(약 10초 간격) `Scheduled restart`를 반복 중이었고, 보존된 저널 기준 누적 실패가 46만 회를 넘어 있었음.
+
+```
+learningetl.service: Failed to load environment files: No such file or directory
+learningetl.service: Failed to spawn 'start-pre' task: No such file or directory
+learningetl.service: Failed with result 'resources'.
+```
+
+원인: 프로젝트 폴더가 `/home/jcw/LearningETL` → `/home/jcw/LearningCollector_v1.0`으로 이름이 바뀌었는데, systemd 유닛의 `EnvironmentFile`/실행 스크립트 경로는 옛 경로 그대로 남아 있었음. `Restart=` 정책 때문에 systemd가 절대 포기하지 않고 몇 달째 10초 간격 재시도를 반복. `learningcollector-daily.service`/`.timer`도 같은 이름 불일치로 매일 자정 `203/EXEC No such file or directory`로 실패 중이었음. `journalctl --list-boots`로 대조해보니 이 무한 루프가 방치된 기간에 재부팅 빈도도 겹쳐서 늘어나 있었음. 해결: 죽어버린 두 유닛을 중지 후 유닛 파일 자체를 삭제.
+
+### 핵심 교훈
+
+1. 하나의 증상(재부팅/전원 꺼짐)에 서로 무관한 원인이 여러 개 겹쳐 있을 수 있다. 하나를 고쳤는데 증상이 안 사라지면 "고친 원인과는 다른 새 원인"일 가능성을 열어둬야 한다.
+2. `Restart=` 정책이 걸린 데몬형 서비스는 실패해도 화면에 티가 안 난다. 조용히 백그라운드에서 반복 실패하며 리소스를 갉아먹으므로, 로그를 직접 뒤지지 않으면 발견할 수 없다.
+3. 프로젝트 폴더를 옮기거나 이름을 바꾸는 작업은 폴더 하나만 건드리는 게 아니라, 그 경로를 참조하는 모든 설정(systemd 유닛, crontab, 환경변수 파일)을 함께 점검해야 한다. 이름을 바꾼 직후 `systemctl list-units --type=service --all`과 `journalctl -u <서비스명> -f`로 즉시 확인하는 습관이 필요.
+4. 자동화 스크립트(Ansible playbook 등)에 재부팅을 트리거하는 로직이 있으면, 그 스크립트를 실행하는 crontab/타이머가 아직도 걸려 있는지 별도로 확인해야 한다. 스크립트가 있는 폴더를 지웠다고 트리거(crontab)까지 같이 지워지는 건 아니다.
+
+## 2026-02-25 ~ 03-03 클러스터 호스트네임 오염과 블로그 서버 접속 불가 — 범인은 Cloud-init
+
+### 배경
+
+Ansible로 라즈베리파이 클러스터 시스템 업데이트를 자동화하는 과정(2026-02-25)에서, 마스터 노드의 호스트네임이 `raspiMaster`에서 `raspiWorker1`로 계속 바뀌는 현상을 발견. `hostnamectl`과 `/etc/hostname`, `/etc/hosts`를 직접 고쳐도 재부팅하면 다시 `raspiWorker1`로 돌아왔음.
+
+일주일 뒤(2026-03-03), 실제 서비스 장애로 이어짐: 외부에서 블로그 서버에 SSH/HTTP 접속이 전혀 안 되는 상태가 발생.
+
+### 원인 분석
+
+1. **직접 원인**: 워커1(내부 IP 끝자리 94) 노드의 와이파이 연결이 공유기 재시작 이후 재연결에 실패해 네트워크가 끊김.
+2. **호스트네임 오염의 진짜 원인**: 마스터 노드(내부 IP 끝자리 84)의 SD카드를 굽는 과정에서 hostname이 실수로 `raspiWorker1`로 설정됐고, **Cloud-init이 매 부팅마다 `/boot/firmware/user-data`에 적힌 값으로 hostname을 재적용**하고 있었음. `hostnamectl set-hostname`이나 `/etc/hostname` 수정은 Cloud-init이 다음 부팅에 덮어써버리므로 근본 해결이 아니었음.
+
+**기반 CS 지식**: Cloud-init은 클라우드/임베디드 이미지의 "최초 부팅 시 설정"을 매 부팅마다 다시 적용하는 도구다. `/boot/firmware/user-data`처럼 이미지 굽기 단계에서 심어진 설정 파일이 진짜 소스이며, 런타임에 `/etc/hostname` 등을 직접 고치는 건 이 소스가 그대로 있는 한 임시방편에 불과하다.
+
+### 해결
+
+```bash
+# 원인 파일 확인
+cat /boot/firmware/user-data
+
+# 소스 자체를 수정 (런타임 파일이 아니라 Cloud-init이 참조하는 원본)
+sudo sed -i 's/hostname: raspiWorker1/hostname: raspiMaster/' /boot/firmware/user-data
+sudo sed -i 's/manage_etc_hosts: true/manage_etc_hosts: false/' /boot/firmware/user-data
+```
+
+`manage_etc_hosts: false`로 Cloud-init이 `/etc/hosts`를 계속 관리(덮어쓰기)하지 못하게 막은 것이 핵심.
+
+### 핵심 교훈
+
+1. 임베디드/클라우드 이미지에서 설정이 "자꾸 원래대로 돌아온다"면, 런타임 파일이 아니라 그 파일을 매번 재생성하는 상위 소스(Cloud-init의 `user-data` 등)를 찾아야 한다.
+2. SD카드 이미지를 구울 때 Raspberry Pi Imager의 "고급 설정"에서 hostname을 명확히 지정해야 한다. 나중에 발견하면 여러 노드의 호스트네임이 뒤섞인 상태로 몇 주씩 운영되고 있을 수 있다.
+3. 장애 진단은 "외부 접속 → 내부 IP 접속 → 서비스 상태 → 포트 → 설정" 순서로 좁혀가는 게 효율적이다. `Connection timed out`(네트워크 도달 불가)과 `Connection refused`(서버가 명시적으로 거부)는 원인이 다르므로 구분해서 접근해야 한다.
+4. 이번처럼 서로 무관한 두 문제(와이파이 단절 + 호스트네임 오염)가 동시에 존재하면, 하나를 고쳐도 장애가 안 풀려서 "아직도 안 됨"으로 오인하기 쉽다. 증상 하나에 원인 하나라고 가정하지 않는다.
+
+## 2026-03-02 ~ 03-03 CI/CD 파이프라인 단순화 — lint/unit/integration 제거, e2e + DB 백업·복원으로 정리
+
+### 배경
+
+초기 CI에는 `lint`, `unit-tests`, `integration-tests`, `e2e-tests`, `check-infra` 잡이 전부 있었으나, 운영하면서 다음 마찰이 누적됨:
+- 테스트 파일이 아직 없는 상태에서 `unit-tests`가 그냥 실패로 처리됨
+- `integration-tests`가 `DB_SCHEMA=test_blog` 설정 없이 운영 스키마와 충돌
+- CI 러너에서 `unattended-upgrades`가 `apt` 락을 잡고 있어 Playwright 설치 단계가 간헐적으로 멈춤
+
+### 조치 (단계적으로 시도)
+
+1. `test: passWithNoTests` 설정 — 테스트 파일이 없어도 CI가 실패하지 않게
+2. `unit-tests` 스킵 + `npm install` → `npm ci` 전환
+3. `integration-tests`, `e2e-tests`를 `if: false`로 임시 스킵
+4. `systemctl stop unattended-upgrades`를 CI 스텝에 추가해 apt 락 대기 문제 회피
+5. 최종적으로 `lint`/`unit-tests`/`integration-tests`/`check-infra` 잡을 전부 제거하고, `e2e-tests`를 `web-page-tests`로 이름을 바꿔 하나만 남김
+6. 남은 e2e 테스트가 실제 posts/projects 테이블에 데이터를 만들고 지우므로, 테스트 전 `backup-test-db.sh`로 백업하고 테스트 후(`if: always()`) `restore-test-db.sh`로 원복하는 방식으로 데이터 격리 확보
+
+### 핵심 교훈
+
+1. CI 잡을 여러 개 늘리는 것보다, 실제로 신뢰하고 유지보수할 수 있는 범위로 좁히는 게 낫다. 실패가 잦고 원인이 CI 인프라(apt 락, 스키마 충돌)에 있는 잡은 신호 대신 소음이 된다.
+2. e2e 테스트가 라이브 DB의 실제 테이블에 쓰기 작업을 한다면, "백업 → 테스트 → 복원(항상 실행)" 패턴으로 테스트 격리를 확보할 수 있다. DB를 매번 새로 만들 필요는 없다.
+3. CI 환경의 배경 프로세스(`unattended-upgrades` 등)가 `apt` 락을 잡고 있으면 패키지 설치 스텝이 이유 없이 멈춘 것처럼 보인다 — 잡히지 않는 CI 실패는 러너의 배경 작업부터 의심.
+
+## 2026-02-02 KaTeX 수식과 마크다운 강조 문법(`_`, `*`)의 충돌
+
+### 배경
+
+마크다운 지원(2026-01-05~08, 아래 항목)에 이어 수학 수식(KaTeX) 렌더링을 추가하는 과정에서, `$Z_p^*$`, `$a_0$`처럼 언더스코어/별표가 들어간 수식이 깨져서 표시됨.
+
+### 원인
+
+`marked-katex-extension`을 marked 파서에 플러그인으로 등록하는 방식을 썼는데, marked가 수식 내부의 `_`와 `*`를 KaTeX 확장이 처리하기 전에 먼저 마크다운의 강조 문법(기울임/굵게)으로 해석해버림. 즉 두 파서가 같은 문자를 서로 다른 의미로 먼저 가져가려고 경합한 것.
+
+### 해결
+
+`marked-katex-extension`(marked 파서 내부에서 동작)을 걷어내고, 수식을 marked에게 넘기기 전에 직접 처리하는 방식으로 전환:
+1. 마크다운 파싱 **전에** `$...$`/`$$...$$` 수식을 정규식으로 먼저 추출해 KaTeX로 렌더링
+2. 렌더링된 결과를 placeholder 문자열로 치환한 상태로 marked에 넘김 (이 단계에서는 수식 부분에 `_`/`*`가 없으므로 마크다운이 건드릴 게 없음)
+3. 마크다운 파싱이 끝난 뒤 placeholder를 실제 렌더링된 수식 HTML로 복원
+
+### 핵심 교훈
+
+1. 서로 다른 두 파서(마크다운, LaTeX)가 같은 특수문자(`_`, `*`, `^`)를 다른 문법으로 쓸 때는, "먼저 처리해서 안전한 형태로 감싼 뒤 나중 파서에 넘기는" 순서 제어가 필요하다. 파서 확장/플러그인에만 맡기면 실행 순서를 제어할 수 없어 충돌이 재발한다.
+2. `hasMathExpression()` 같은 감지 함수를 만들 때, 가격 표시(`$100`)처럼 수식이 아닌 `$` 사용과 실제 LaTeX 수식을 구분하는 정규식은 처음부터 완벽하게 짜기 어렵다 — 실제 콘텐츠로 반복 검증하며 다듬어야 하는 영역.
+
 ## 2026-01-05 마크다운 지원 구현
 
 ### 구현 목표
@@ -411,3 +539,49 @@ API 응답
 **브랜치:** `claude/add-markdown-support-6fGtE`
 **총 커밋 수:** 12개
 **구현 기간:** 2026-01-05 ~ 2026-01-08
+## 2026-01-02 PostgreSQL 스키마 분리 후 "relation does not exist" — `search_path` 미설정
+
+### 배경
+
+테이블을 `public` 스키마에서 `blog` 스키마로 옮긴 뒤, 백엔드에서 `relation "posts" does not exist` 에러가 발생.
+
+### 원인
+
+`pg` 커넥션 풀 설정에 스키마 지정이 없어서, 세션의 `search_path`가 기본값 `public`으로 남아있었음. 테이블은 `blog.posts`에 있는데 쿼리는 `posts`(암묵적으로 `public.posts`)를 찾고 있었던 것.
+
+### 해결
+
+```javascript
+const pool = new Pool({
+  // ...
+  options: `-c search_path=${process.env.DB_SCHEMA || 'public'}`,
+});
+```
+
+`DB_SCHEMA` 환경변수로 스키마를 지정하고, 기본값은 `public`으로 두어 스키마를 안 쓰는 다른 환경과의 하위 호환성을 유지.
+
+### 핵심 교훈
+
+- 스키마를 도입하면서 테이블 참조(`CREATE TABLE`, 쿼리)만 바꾸기 쉬운데, 커넥션 자체의 `search_path`도 같이 맞춰야 한다는 걸 놓치기 쉽다. `relation does not exist`가 스키마 변경 직후 발생하면 코드의 쿼리 문제가 아니라 커넥션 설정 문제일 가능성부터 확인.
+- 로컬에서 진단 스크립트(`psql`)를 돌릴 때도 앱과 동일한 사용자/스키마로 접속해야 앱이 보는 것과 같은 결과를 볼 수 있다. `sudo -u postgres psql`처럼 다른 OS 유저의 peer 인증으로 접속하면 앱의 연결 경로(`-h localhost -U <앱 유저>`, TCP 인증)와 달라져서 진단이 어긋날 수 있다.
+
+## 2025-12-22 ~ 12-24 백엔드 설정 파일 구조 개편과 SSR/클라이언트 API URL 분기
+
+### 배경
+
+초기 배포 단계에서 백엔드 모듈 로딩 에러, 누락된 의존성, PM2 경로 문제, 프론트엔드 환경변수 미설정, SSR/클라이언트 API 호출 실패가 한꺼번에 얽혀서 나타남.
+
+### 문제와 원인
+
+1. **백엔드 모듈 로딩 에러**: 루트 `config/` 폴더에 `package.json`이 없어 그 안의 파일이 CommonJS로 인식됨 → `config/db.js`를 `backend/config/db.js`로 이동(각 프로젝트 설정은 해당 프로젝트 내부에 배치).
+2. **누락된 의존성**: `express-session` 미설치로 백엔드 크래시 → `backend/package.json`에 추가.
+3. **PM2 설정 경로 문제**: `ecosystem.config.cjs`를 config 폴더 안에 두었더니 스크립트 경로 해석이 어긋남 → 프로젝트 **루트**로 이동하고 각 앱에 `cwd`를 명시. (설정 파일을 폴더별로 정리하려던 시도가, PM2처럼 "루트 기준 상대경로"를 가정하는 도구와는 충돌한 사례.)
+4. **프론트엔드 환경변수 미설정**: Astro `envDir` 커스텀 설정 때문에 `PUBLIC_API_URL`이 빌드에 반영 안 됨 → `.env`를 `frontend/` 기본 위치로 되돌리고 `envDir` 설정 제거.
+5. **SSR vs 클라이언트 API 호출 차이**: 메인 페이지(SSR)에서는 상대 경로 API 호출이 실패하고, blog/projects 페이지(클라이언트)에서는 `localhost:3000` 직접 호출이 연결 거부됨. SSR은 서버 프로세스 내부에서 도는 것이므로 `http://localhost:3000`(백엔드 내부 주소)을 써야 하고, 클라이언트(브라우저)는 nginx가 프록시하는 상대 경로를 써야 함 — `import.meta.env.SSR`로 두 경로를 분기해서 해결.
+
+### 핵심 교훈
+
+1. **SSR과 클라이언트는 서로 다른 네트워크 위치에서 실행된다.** SSR 코드가 만드는 API 호출은 서버 프로세스 관점(내부 주소)에서, 클라이언트 코드가 만드는 호출은 브라우저 관점(공개 주소/상대경로)에서 짜야 한다. 이 구분을 안 하면 한쪽은 되고 한쪽은 실패하는 상태가 된다.
+2. 설정 파일을 "폴더별로 깔끔하게" 정리하는 리팩터링은, PM2·Astro처럼 특정 경로 구조(루트 기준 상대경로, 기본 `envDir`)를 가정하는 도구와 충돌할 수 있다. 도구가 파일을 어디서 찾는지 먼저 확인하고 옮겨야 한다.
+3. Node 프로젝트에서 폴더 안 파일이 ESM/CommonJS 중 무엇으로 해석되는지는 그 폴더 계층에 있는(또는 없는) `package.json`의 `type` 필드가 결정한다. 설정 폴더를 새로 만들 때 이 점을 놓치면 import 에러의 원인을 코드가 아닌 곳에서 찾게 된다.
+
