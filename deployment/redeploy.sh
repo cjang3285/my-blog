@@ -25,10 +25,12 @@ rm -rf dist .astro node_modules/.vite
 npm run build
 
 # 4. PM2 재시작
+# --env production 없이 실행하면 ecosystem.config.cjs의 기본 env 블록
+# (NODE_ENV=development)이 적용되어 프로덕션 전용 방어(autoAuth 등)가 무력화됨
 echo ""
-echo "4. PM2 재시작..."
+echo "4. PM2 재시작 (production env)..."
 cd ~/my-blog
-pm2 start ecosystem.config.cjs
+pm2 start ecosystem.config.cjs --env production
 pm2 save
 
 # 5. 상태 확인

@@ -76,7 +76,19 @@ ss -tlnp | grep -E ":3000|:4321"   # -> 127.0.0.1:3000, 127.0.0.1:4321 (이전: 
 - [x] 로그인 비밀번호 bcrypt 해시 비교로 전환
 - [x] nginx `limit_req` + fail2ban 스캐너 시그니처 jail 추가
 - [x] `ufw` 구성 (아래 "후속: 방화벽(ufw) 구성" 참고)
-- [ ] `deployment/nginx-blog.conf` 템플릿과 실제 운영 vhost 아키텍처 불일치 정리 (템플릿은 정적 파일 서빙(`try_files`)을 가정하지만 실제 운영은 Astro SSR 프록시 방식) — 후속 과제
+- [x] `deployment/nginx-blog.conf` 템플릿과 실제 운영 vhost 아키텍처 불일치 정리 (아래 "후속: 배포 템플릿 정리" 참고)
+
+### 후속: 배포 템플릿 정리 (2026-08-04)
+
+`deployment/nginx-blog.conf`가 정적 파일 서빙(`root`+`try_files`)을 가정하고 있었으나, 실제 운영은 Astro SSR(`@astrojs/node`, PM2가 4321에서 구동)을 nginx가 프록시하는 방식이었음. `frontend/dist`는 정적 HTML이 아니라 `dist/server/entry.mjs`(Node 서버)라서, 이 템플릿으로 새로 배포하면 애초에 동작하지 않았을 것.
+
+- `nginx-blog.conf`: `root`/`try_files`를 제거하고 실제 운영 vhost와 동일하게 `location /`을 `proxy_pass http://localhost:4321`로 변경, 오늘 추가한 `limit_req` 두 줄도 반영
+- `nginx-ratelimit.conf`(신규): `limit_req_zone` 정의는 `http` 블록에서만 유효해 `server` 블록 파일(`nginx-blog.conf`) 안에 넣을 수 없음 — `/etc/nginx/conf.d/`에 설치하는 별도 파일로 분리
+- README의 nginx 설정 단계에 `nginx-ratelimit.conf` 설치 스텝 추가
+
+**추가로 발견한 문제**: `deployment/redeploy.sh`(GitHub Actions `deploy.yml`이 push마다 실행)가 `pm2 start ecosystem.config.cjs`를 `--env production` 없이 호출하고 있었음. 이 상태로 다음 자동배포가 실행되면 오늘 고친 `NODE_ENV=production` 설정이 `ecosystem.config.cjs`의 기본 `env` 블록(`development`)으로 되돌아가면서, `autoAuth` 등 프로덕션 전용 방어가 조용히 무력화된다. `pm2 start ecosystem.config.cjs --env production`으로 수정.
+
+**교훈**: 배포 자동화 스크립트(CI가 실행하는 스크립트)는 코드 리뷰에서 놓치기 쉽다. 설정값 하나(`NODE_ENV`)를 코드에서 올바르게 분기해뒀어도, 그 값을 실제로 채워주는 배포 스크립트가 틀려 있으면 다음 배포에서 조용히 원상복구된다 — 보안 관련 설정을 고쳤다면 "이 설정이 다음 배포에도 유지되는가"까지 배포 스크립트 레벨에서 확인해야 한다.
 
 ### 후속: 방화벽(ufw) 구성 (같은 날)
 

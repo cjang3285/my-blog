@@ -22,8 +22,9 @@ my-blog/
 │   ├── db/                    # DB 마이그레이션 SQL
 │   └── config/                # 환경변수, DB, ESLint, Vitest 설정
 ├── deployment/                # 배포 설정 파일
-│   ├── nginx-blog.conf
-│   ├── blog-backend.service
+│   ├── nginx-blog.conf        # Astro SSR(4321)·API(3000) 프록시 vhost
+│   ├── nginx-ratelimit.conf   # limit_req_zone 정의 (conf.d에 설치)
+│   ├── blog-backend.service   # (미사용, PM2로 대체됨)
 │   └── redeploy.sh
 ├── ecosystem.config.cjs       # PM2 설정
 ├── CLAUDE.MD                  # AI 개발 가이드라인
@@ -244,6 +245,9 @@ pm2 startup  # 시스템 부팅 시 자동 시작
 ```bash
 # nginx 설치
 sudo apt install nginx
+
+# rate limit zone 정의 (limit_req_zone은 http 블록에만 위치 가능하므로 conf.d에 설치)
+sudo cp deployment/nginx-ratelimit.conf /etc/nginx/conf.d/ratelimit.conf
 
 # 설정 파일 복사
 sudo cp deployment/nginx-blog.conf /etc/nginx/sites-available/blog
