@@ -27,6 +27,7 @@ my-blog/
 │   └── redeploy.sh
 ├── ecosystem.config.cjs       # PM2 설정
 ├── CLAUDE.MD                  # AI 개발 가이드라인
+├── LEARNINGS.md               # 개발·운영 중 발견한 문제와 교훈 기록
 └── LICENSE
 ```
 
@@ -324,7 +325,7 @@ sudo tail -f /var/log/nginx/blog_error.log
 ## 인증 시스템
 
 ### 자동 인증
-- **개발 환경(`NODE_ENV=development`)에서만** localhost 접속 시 자동 관리자 인증. 프로덕션에서는 비활성화됨(2026-08-04, [CLAUDE.MD §5](./CLAUDE.MD) 참고).
+- **개발 환경(`NODE_ENV=development`)에서만** localhost 접속 시 자동 관리자 인증. 프로덕션에서는 비활성화됨(2026-08-04, [LEARNINGS.md](./LEARNINGS.md) 참고).
 - 신뢰 IP 추가: `TRUSTED_IPS` 환경변수에 쉼표 구분으로 설정
 - 클라이언트 IP는 Express `trust proxy` + nginx `X-Forwarded-For: $remote_addr`(overwrite, append 아님)로 판별. 헤더를 직접 파싱하는 코드를 추가할 경우 이 신뢰 체인을 깨뜨릴 수 있으니 주의.
 - 세션 유지: 7일
@@ -378,7 +379,7 @@ pm2 describe blog-backend
 
 ## 개발 가이드
 
-AI 협업 시 코드 작성 규칙은 [CLAUDE.MD](./CLAUDE.MD) 참조.
+AI 협업 시 코드 작성 규칙은 [CLAUDE.MD](./CLAUDE.MD) 참조. 개발·운영 중 발견한 문제와 교훈은 [LEARNINGS.md](./LEARNINGS.md)에 기록.
 
 ## 라이센스
 
