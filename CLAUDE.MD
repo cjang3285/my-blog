@@ -382,3 +382,79 @@ API 응답
 **브랜치:** `claude/add-markdown-support-6fGtE`
 **총 커밋 수:** 12개
 **구현 기간:** 2026-01-05 ~ 2026-01-08
+
+## 5. 방문자 로그 인증 우회 취약점 대응 (2026-08-04)
+
+### 발견 배경
+
+운영 중인 방문자 로그(`/{adminPath}/visits`)를 검토하던 중, 인터넷에 상시 존재하는 배경 스캔(`.env`, `.git/config`, PHPUnit `eval-stdin.php` RCE 프로브(CVE-2017-9841), GeoServer RCE 프로브 등)과는 별개로 이상 패턴 발견: IP가 `127.0.0.1`로 기록되고 User-Agent가 `WordPress/6.9.4`로 위장된 요청이 `/blog/wp-login.php`, `/blog/wp-json/` 등을 조회함. 이 사이트에는 실제 워드프레스가 없으므로 워드프레스 스캔으로 위장한 시도가 왜 "로컬호스트에서" 온 것으로 기록됐는지 조사.
+
+### 근본 원인 분석 (신뢰 체인 추적)
+
+1. nginx: `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;` — 이 지시어는 클라이언트가 보낸 `X-Forwarded-For` 값 뒤에 실제 접속 IP를 **추가(append)**할 뿐 덮어쓰지 않음.
+2. `backend/middleware/auth.js`, `frontend/src/middleware.js` 둘 다 `X-Forwarded-For.split(',')[0]`으로 **첫 번째 값**을 클라이언트 IP로 채택 — nginx가 append 방식이므로 첫 값은 언제나 클라이언트가 직접 실어 보낸, 검증되지 않은 값.
+3. `autoAuth` 미들웨어가 클라이언트 IP가 `127.0.0.1`이면 세션을 관리자로 자동 인증 — "로컬호스트=신뢰됨"이라는 개발 편의 기능이 위 1, 2와 결합해 인증 우회로 이어짐. 누구든 요청에 `X-Forwarded-For: 127.0.0.1` 헤더 한 줄만 추가하면 비밀번호 없이 포스트/프로젝트 작성·수정·삭제 권한을 가진 세션을 얻을 수 있었음.
+
+**기반 CS 지식**: HTTP 리버스 프록시 뒤에서 클라이언트 IP를 판별할 때 `X-Forwarded-For`는 클라이언트가 임의로 조작 가능한 요청 헤더다. 신뢰할 수 있는 것은 오직 "가장 안쪽(서버에 가장 가까운) 프록시가 마지막에 추가한 값"뿐이며, 그 값을 신뢰하려면 프록시가 클라이언트가 보낸 기존 값을 **덮어써야** 한다. Express의 `trust proxy` 옵션은 이 hop-counting을 정확히 구현하지만, 헤더를 직접 파싱하는 코드가 있으면 그 계약이 조용히 깨진다.
+
+### 추가로 발견된 문제
+
+- pm2가 `ecosystem.config.cjs`의 기본 `env` 블록(`NODE_ENV=development`)으로 기동된 채 장기간 운영 중이었음 — `--env production` 플래그 없이 배포됨. dev 전용으로 제한한 방어도 이 상태에서는 무력화됨.
+- 백엔드(3000)·프론트엔드(4321) 둘 다 `0.0.0.0`에 바인딩 + 방화벽(`ufw`) 비활성 — nginx를 거치지 않고 포트에 직접 접속하면 nginx에서 고친 신뢰 체인과 무관하게 임의 헤더 주입이 다시 가능.
+
+### 해결
+
+1. nginx `X-Forwarded-For`를 `$proxy_add_x_forwarded_for` → `$remote_addr`로 변경(append → overwrite).
+2. `backend/middleware/auth.js`: 헤더 직접 파싱 대신 Express `req.ip` 사용. `frontend/src/middleware.js`: `split(',')`의 마지막 값 사용(방어적).
+3. `autoAuth`를 `NODE_ENV === 'development'`에서만 동작하도록 제한.
+4. pm2를 `--env production`으로 재기동, 이후 배포 시 항상 이 플래그를 명시.
+5. 백엔드/프론트엔드를 `127.0.0.1`에만 바인딩(`HOST` env, `ecosystem.config.cjs`) — nginx 우회 경로 차단.
+6. 로그인 비밀번호를 평문 비교에서 `bcrypt` 해시 비교로 전환.
+7. nginx `limit_req_zone` 추가, `fail2ban`에 스캐너 시그니처(`.env`, `.git`, `wp-login`, `eval-stdin.php` 등) 및 rate-limit 위반 감지 jail 추가(기존엔 `sshd` jail만 있었음).
+
+### 검증
+
+```
+# 스푸핑된 X-Forwarded-For로 인증 필요 엔드포인트 직접/nginx 경유 호출
+curl -H "X-Forwarded-For: 127.0.0.1" http://localhost:3000/api/visits/stats        # -> 401 (이전: 200, 인증 우회)
+curl -k -H "Host: chanwook.kr" -H "X-Forwarded-For: 127.0.0.1" https://localhost/api/visits/stats  # -> 401
+
+# 정상 트래픽 회귀 확인
+curl -k -H "Host: chanwook.kr" https://localhost/            # -> 200
+curl -k -H "Host: chanwook.kr" https://localhost/api/posts   # -> 200
+
+# 포트 바인딩 확인
+ss -tlnp | grep -E ":3000|:4321"   # -> 127.0.0.1:3000, 127.0.0.1:4321 (이전: 0.0.0.0)
+```
+
+### 트러블슈팅: "`ip`를 body 대신 `req.ip`로 받자"가 실제로는 버그였던 이유
+
+최초 대응으로 `POST /api/visits`가 body의 `ip` 필드를 그대로 믿는 게 위험하다고 판단해 서버측 `req.ip`로 대체했으나, 이는 **모든 방문자 IP가 `127.0.0.1`로만 기록되는 회귀**를 발생시켰음.
+
+원인: Astro SSR(frontend, 4321)이 자신이 받은 요청의 `X-Forwarded-For`에서 실제 방문자 IP를 추출한 뒤, `http://localhost:3000/api/visits`로 백엔드에 내부 호출(loopback)을 보내는 구조. 이 내부 호출은 nginx를 거치지 않으므로 백엔드 입장에서 `req.ip`는 언제나 loopback이다. 즉 "IP를 신뢰 가능한 계층에서 판별"해야 하는 지점은 백엔드가 아니라 프론트엔드였다.
+
+최종 해결: body의 `ip`는 유지하되, 그 값을 주장할 수 있는 호출자를 프론트엔드의 내부 loopback 호출로만 제한. nginx가 프록시하는 모든 외부 요청에는 반드시 `X-Forwarded-For` 헤더가 붙는다는 사실(위 nginx 설정 변경으로 항상 `$remote_addr`가 세팅됨)을 이용해, 이 헤더가 존재하면 외부에서 온 요청으로 간주해 `403`으로 거부(`backend/routes/visitRoutes.js`의 `internalOnly` 미들웨어).
+
+**교훈**: 내부 서비스 호출 구조(frontend→backend loopback)에서 "클라이언트 IP"는 그 값을 최초로 관측한 계층에서만 정확하다. 후속 단계로 값을 전달할 때는 값 자체의 신뢰성이 아니라 "누가 이 값을 주장하고 있는가"를 검증하는 것이 핵심이다. `req.ip`로의 일괄 교체처럼 겉보기에 더 안전해 보이는 변경이 아키텍처를 이해하지 못하면 기능을 깨뜨릴 수 있다.
+
+### 핵심 교훈
+
+1. `X-Forwarded-For`는 append용 지시어(`$proxy_add_x_forwarded_for`)와 overwrite용 지시어(`$remote_addr`)를 구분해서 써야 한다 — 단일 리버스 프록시 뒤에 있다면 항상 후자를 쓴다.
+2. 리버스 프록시 신뢰 설정(Express `trust proxy` 등)이 있어도, 코드 어딘가에서 헤더를 직접 파싱하면 그 신뢰 계약이 조용히 깨질 수 있다. `x-forwarded-for`를 직접 파싱하는 곳을 주기적으로 grep해서 점검.
+3. "로컬호스트=신뢰됨" 같은 개발 편의 기능은 프로덕션에서 `NODE_ENV` 분기로 반드시 차단해야 하며, 그 `NODE_ENV`가 실제 배포 시점에 올바르게 설정되는지 별도로 검증해야 한다. pm2 `--env production` 누락처럼 코드는 맞아도 배포 방식이 방어를 무력화할 수 있다.
+4. 애플리케이션 포트를 리버스 프록시 뒤에 둘 때는 반드시 `127.0.0.1`에 바인딩한다. 그렇지 않으면 프록시의 모든 보안 설정(TLS, 헤더 재작성, rate limit)이 우회 가능하다.
+5. 내부 서비스 간 호출에서 넘어오는 값(IP 등)의 신뢰 여부는 "그 호출이 신뢰 가능한 경로로만 올 수 있는가"로 검증해야 하며, 값을 아예 서버가 재계산하는 것으로 대체하면 오히려 기능이 깨질 수 있다.
+6. 방문자 로그·에러 로그는 스캔/공격 트래픽과 자체 코드의 취약점이 실제로 부딫히는 지점을 드러낸다 — 정기적으로 인기 경로/이상 IP 패턴을 검토하는 습관이 이번 발견의 시작점이었음.
+
+### 배포 체크리스트
+
+- [x] nginx `X-Forwarded-For` 덮어쓰기로 변경
+- [x] backend/frontend `req.ip`/`req.socket` 기반 IP 판별로 전환
+- [x] `autoAuth`를 `NODE_ENV=development` 전용화
+- [x] pm2 production env로 재기동
+- [x] backend/frontend `127.0.0.1` 바인딩
+- [x] `POST /api/visits` 내부 호출만 허용 + rate limit
+- [x] 로그인 비밀번호 bcrypt 해시 비교로 전환
+- [x] nginx `limit_req` + fail2ban 스캐너 시그니처 jail 추가
+- [ ] `deployment/nginx-blog.conf` 템플릿과 실제 운영 vhost 아키텍처 불일치 정리 (템플릿은 정적 파일 서빙(`try_files`)을 가정하지만 실제 운영은 Astro SSR 프록시 방식) — 후속 과제
+- [ ] `ufw` 활성화 검토 (현재는 앱 포트 바인딩만으로 방어, 방화벽 자체는 비활성 상태)
