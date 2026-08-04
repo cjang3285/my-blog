@@ -1,0 +1,146 @@
+---
+export const prerender = false;
+
+import Layout from '../../layouts/Layout.astro';
+
+// 경로 자체가 비밀번호 역할을 하므로 ADMIN_PATH_SECRET과 일치하지 않으면 404로 응답
+const ADMIN_PATH_SECRET = import.meta.env.ADMIN_PATH_SECRET;
+if (!ADMIN_PATH_SECRET || Astro.params.adminPath !== ADMIN_PATH_SECRET) {
+  return new Response(null, { status: 404 });
+}
+
+const pageTitle = '방문자 로그 - 장찬욱';
+const loginHref = `/${ADMIN_PATH_SECRET}/login?redirect=/${ADMIN_PATH_SECRET}/visits`;
+---
+
+<Layout title={pageTitle} description="방문자 로그" wide={true}>
+  <div id="unauthorized" class="hidden text-center py-16">
+    <p class="text-warm-400 mb-4">관리자만 접근할 수 있습니다.</p>
+    <a href={loginHref} class="text-accent hover:text-accent-hover text-sm">로그인하러 가기 &rarr;</a>
+  </div>
+
+  <div id="visits-content" class="hidden">
+    <h1 class="text-2xl font-semibold text-warm-100 mb-6 tracking-tight">방문자 로그</h1>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+      <div class="p-5 rounded-lg border border-warm-800/50 bg-warm-900/30">
+        <h2 class="text-sm font-medium text-warm-500 uppercase tracking-wider mb-2">전체 방문</h2>
+        <p id="stat-total" class="text-warm-200 text-2xl">-</p>
+      </div>
+      <div class="p-5 rounded-lg border border-warm-800/50 bg-warm-900/30">
+        <h2 class="text-sm font-medium text-warm-500 uppercase tracking-wider mb-2">최근 24시간</h2>
+        <p id="stat-24h" class="text-warm-200 text-2xl">-</p>
+      </div>
+      <div class="p-5 rounded-lg border border-warm-800/50 bg-warm-900/30">
+        <h2 class="text-sm font-medium text-warm-500 uppercase tracking-wider mb-2">최근 7일 순 방문자(IP)</h2>
+        <p id="stat-unique-ips" class="text-warm-200 text-2xl">-</p>
+      </div>
+    </div>
+
+    <h2 class="text-lg font-semibold text-warm-100 mb-3">최근 7일 인기 경로</h2>
+    <div class="mb-8 rounded-lg border border-warm-800/50 overflow-hidden">
+      <table class="w-full text-sm">
+        <thead class="bg-warm-900/50 text-warm-500">
+          <tr>
+            <th class="text-left px-4 py-2 font-medium">경로</th>
+            <th class="text-right px-4 py-2 font-medium">방문 수</th>
+          </tr>
+        </thead>
+        <tbody id="top-paths-body"></tbody>
+      </table>
+    </div>
+
+    <h2 class="text-lg font-semibold text-warm-100 mb-3">최근 방문 기록</h2>
+    <div class="rounded-lg border border-warm-800/50 overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-warm-900/50 text-warm-500">
+          <tr>
+            <th class="text-left px-4 py-2 font-medium whitespace-nowrap">시각</th>
+            <th class="text-left px-4 py-2 font-medium">경로</th>
+            <th class="text-left px-4 py-2 font-medium">IP</th>
+            <th class="text-left px-4 py-2 font-medium">Referrer</th>
+            <th class="text-left px-4 py-2 font-medium">User-Agent</th>
+          </tr>
+        </thead>
+        <tbody id="visits-body"></tbody>
+      </table>
+    </div>
+  </div>
+</Layout>
+
+<script>
+  const API_URL = import.meta.env.PUBLIC_API_URL || '';
+
+  function escapeHtml(value: string) {
+    const div = document.createElement('div');
+    div.textContent = value;
+    return div.innerHTML;
+  }
+
+  async function loadVisits() {
+    try {
+      const authRes = await fetch(`${API_URL}/api/auth/check`, { credentials: 'include' });
+      const authData = await authRes.json();
+
+      if (!authData.isAuthenticated) {
+        document.getElementById('unauthorized')?.classList.remove('hidden');
+        return;
+      }
+
+      const [statsRes, listRes] = await Promise.all([
+        fetch(`${API_URL}/api/visits/stats`, { credentials: 'include' }),
+        fetch(`${API_URL}/api/visits?limit=100`, { credentials: 'include' }),
+      ]);
+
+      if (!statsRes.ok || !listRes.ok) {
+        document.getElementById('unauthorized')?.classList.remove('hidden');
+        return;
+      }
+
+      const stats = await statsRes.json();
+      const visits = await listRes.json();
+
+      document.getElementById('stat-total')!.textContent = String(stats.total);
+      document.getElementById('stat-24h')!.textContent = String(stats.last24h);
+      document.getElementById('stat-unique-ips')!.textContent = String(stats.uniqueIpsLast7d);
+
+      const topPathsBody = document.getElementById('top-paths-body');
+      if (topPathsBody) {
+        topPathsBody.innerHTML = stats.topPathsLast7d
+          .map(
+            (row: { path: string; count: string }) => `
+              <tr class="border-t border-warm-800/50">
+                <td class="px-4 py-2 text-warm-300">${escapeHtml(row.path)}</td>
+                <td class="px-4 py-2 text-right text-warm-300">${escapeHtml(row.count)}</td>
+              </tr>
+            `
+          )
+          .join('');
+      }
+
+      const visitsBody = document.getElementById('visits-body');
+      if (visitsBody) {
+        visitsBody.innerHTML = visits
+          .map(
+            (v: { created_at: string; path: string; ip: string | null; referrer: string | null; user_agent: string | null }) => `
+              <tr class="border-t border-warm-800/50">
+                <td class="px-4 py-2 text-warm-500 whitespace-nowrap">${escapeHtml(new Date(v.created_at).toLocaleString('ko-KR'))}</td>
+                <td class="px-4 py-2 text-warm-300">${escapeHtml(v.path)}</td>
+                <td class="px-4 py-2 text-warm-400">${escapeHtml(v.ip || '-')}</td>
+                <td class="px-4 py-2 text-warm-500 truncate max-w-[200px]">${escapeHtml(v.referrer || '-')}</td>
+                <td class="px-4 py-2 text-warm-500 truncate max-w-[280px]">${escapeHtml(v.user_agent || '-')}</td>
+              </tr>
+            `
+          )
+          .join('');
+      }
+
+      document.getElementById('visits-content')?.classList.remove('hidden');
+    } catch (error) {
+      console.error('[VISITS] Failed to load:', error);
+      document.getElementById('unauthorized')?.classList.remove('hidden');
+    }
+  }
+
+  loadVisits();
+</script>

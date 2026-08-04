@@ -35,12 +35,12 @@ module.exports = {
       max_memory_restart: '1G',
       env: {
         NODE_ENV: 'development',
-        HOST: '0.0.0.0',
+        HOST: '127.0.0.1',
         PORT: 4321
       },
       env_production: {
         NODE_ENV: 'production',
-        HOST: '0.0.0.0',
+        HOST: '127.0.0.1',
         PORT: 4321
       },
       error_file: './logs/err.log',

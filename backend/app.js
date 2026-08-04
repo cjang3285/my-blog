@@ -9,9 +9,11 @@ import postRoutes from './routes/postRoutes.js';
 import projectRoutes from './routes/projectRoutes.js';
 import healthRoutes from './routes/healthRoutes.js';
 import authRoutes from './routes/authRoutes.js';
+import visitRoutes from './routes/visitRoutes.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const HOST = process.env.HOST || '127.0.0.1';
 
 // CORS configuration - allow multiple origins
 const allowedOrigins = [
@@ -62,8 +64,9 @@ app.use('/api/auth', authRoutes);
 app.use('/api/status', statusRoutes);
 app.use('/api/posts', postRoutes);
 app.use('/api/projects', projectRoutes);
+app.use('/api/visits', visitRoutes);
 app.use('/api', healthRoutes);
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+app.listen(PORT, HOST, () => {
+  console.log(`Server running on ${HOST}:${PORT}`);
 });

@@ -1,11 +1,3 @@
-// Get client IP address
-const getClientIp = (req) => {
-  return req.headers['x-forwarded-for']?.split(',')[0].trim() ||
-         req.headers['x-real-ip'] ||
-         req.socket.remoteAddress ||
-         req.connection.remoteAddress;
-};
-
 // Check if IP is trusted (localhost only)
 const isTrustedIp = (ip) => {
   const trustedIps = [
@@ -21,17 +13,21 @@ const isTrustedIp = (ip) => {
   return trustedIps.includes(ip) || customIps.includes(ip);
 };
 
-// Auto-authenticate trusted IPs
+// Auto-authenticate trusted IPs (development only — relies on Express's
+// hop-aware req.ip, never on raw client-supplied headers)
 export const autoAuth = (req, res, next) => {
+  if (process.env.NODE_ENV !== 'development') {
+    return next();
+  }
+
   // Skip if already authenticated
   if (req.session && req.session.isAuthenticated) {
     return next();
   }
 
-  const clientIp = getClientIp(req);
-
-  // Auto-authenticate localhost
-  if (isTrustedIp(clientIp)) {
+  // req.ip resolves correctly per Express's `trust proxy` setting (app.js),
+  // unlike manually parsing X-Forwarded-For which a client can spoof.
+  if (isTrustedIp(req.ip)) {
     req.session.isAuthenticated = true;
     req.session.autoAuthenticated = true; // Mark as auto-authenticated
   }

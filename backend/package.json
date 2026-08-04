@@ -19,9 +19,11 @@
   "license": "MIT",
   "description": "",
   "dependencies": {
+    "bcrypt": "6.0.0",
     "cors": "2.8.5",
     "dotenv": "16.4.7",
     "express": "5.2.1",
+    "express-rate-limit": "8.6.0",
     "express-session": "1.18.1",
     "katex": "^0.16.33",
     "marked": "15.0.6",

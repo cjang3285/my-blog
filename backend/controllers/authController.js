@@ -1,14 +1,21 @@
-// Simple authentication controller
-// In production, use bcrypt for password hashing
+import bcrypt from 'bcrypt';
 
-export const login = (req, res) => {
+export const login = async (req, res) => {
   const { password } = req.body;
+  const ADMIN_PASSWORD_HASH = process.env.ADMIN_PASSWORD_HASH;
 
-  // Check password against environment variable
-  // In production, use bcrypt.compare()
-  const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
+  if (!ADMIN_PASSWORD_HASH) {
+    console.error('ADMIN_PASSWORD_HASH가 설정되지 않았습니다.');
+    return res.status(500).json({ error: 'Server misconfiguration' });
+  }
 
-  if (password === ADMIN_PASSWORD) {
+  if (typeof password !== 'string' || !password) {
+    return res.status(401).json({ error: 'Invalid password' });
+  }
+
+  const isMatch = await bcrypt.compare(password, ADMIN_PASSWORD_HASH);
+
+  if (isMatch) {
     req.session.isAuthenticated = true;
     return res.json({ success: true, message: 'Login successful' });
   }

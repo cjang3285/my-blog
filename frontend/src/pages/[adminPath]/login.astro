@@ -2,6 +2,12 @@
 export const prerender = false;
 import Layout from '../../layouts/Layout.astro';
 
+// 경로 자체가 비밀번호 역할을 하므로 ADMIN_PATH_SECRET과 일치하지 않으면 404로 응답
+const ADMIN_PATH_SECRET = import.meta.env.ADMIN_PATH_SECRET;
+if (!ADMIN_PATH_SECRET || Astro.params.adminPath !== ADMIN_PATH_SECRET) {
+  return new Response(null, { status: 404 });
+}
+
 const pageTitle = '로그인 - 장찬욱';
 ---
 
