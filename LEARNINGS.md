@@ -2,6 +2,28 @@
 
 개발·개선·운영 과정에서 발견한 문제와 그로부터 얻은 교훈을 기록한다. 최신 항목이 위에 온다. 문서화 규칙(어투, 성능 수치 등)은 [CLAUDE.MD](./CLAUDE.MD) 3장을 따른다.
 
+## 2026-08-20 DB 백업 오프사이트 복제(rclone/Google Drive) 및 복구 플로우 검증
+
+### 배경
+
+`backend/scripts/backup-db.sh`가 `@daily` cron으로 `pg_dump`를 떠서 `/home/jcw/backups/my-blog-db`에 저장하고 있었으나, DB 원본과 백업이 같은 라즈베리파이의 같은 디스크에 있었음. 디스크·SD카드 장애 시 원본과 백업이 동시에 소실되는 구조라 재해복구 관점에서는 백업이 아니었음. 또한 "백업 파일이 생성됨"과 "그 파일로 실제 복원이 됨"은 별개로, 복원 플로우가 실제로 검증된 적이 없었음.
+
+### 조치
+
+1. `backup-db.sh`에 로컬 백업·정리 이후 `rclone copy`로 Google Drive(`gdrive:my-blog-backups`)에 업로드하는 단계 추가. 로컬과 동일하게 14일 지난 원격 백업은 `rclone delete --min-age`로 정리. `gdrive` remote가 없으면(`rclone listremotes`로 확인) 에러 없이 경고만 남기고 건너뛰도록 가드 처리 — remote 설정 전에 cron이 돌아도 백업 자체는 깨지지 않게 함.
+2. `rclone config`/`rclone authorize`는 브라우저 또는 대화형 stdin이 필요한 커맨드라 헤드리스 서버(SSH만 있는 환경)에서 직접 실행 불가. 브라우저 있는 별도 기기에서 `rclone authorize "drive"`를 실행하되, Pi로의 SSH 세션에 `-L 53682:localhost:53682` 로컬 포트포워딩을 걸어 OAuth 콜백이 Pi에서 열려 있는 로컬 서버로 돌아오게 함. 그 결과로 나온 토큰 JSON은 `rclone config create gdrive drive scope=drive config_is_local=false token='...'`로 완전 비대화형 생성.
+3. `pg_restore --list`로 덤프 파일의 TOC를 확인해 스키마뿐 아니라 `TABLE DATA` 항목(blog.posts, blog.projects, blog.visits, learning.* 4개 테이블)이 실제로 포함돼 있는지 확인.
+4. 임시 DB(`my_blog_restore_test`, 작업 종료 후 즉시 drop)에 로컬 덤프를 `pg_restore --no-owner --no-privileges`로 복원하고, 운영 DB와 테이블별 row 수·최근 게시글 샘플을 대조해 완전히 일치함을 확인 (posts 344, projects 8, visits 16698, learning.* 4개 테이블 포함).
+5. Google Drive에 업로드된 파일을 다시 내려받아 로컬 원본과 `sha256sum` 비교로 무손실 업로드를 확인하고, 그 다운로드본만으로 별도 임시 DB(`my_blog_restore_test2`)에 복원해 동일한 row 수가 나오는지까지 검증 — 로컬 덤프가 아니라 오프사이트 사본 자체로 복구가 가능함을 확인.
+6. 검증에 사용한 임시 DB와 다운로드 파일은 확인 직후 삭제. 운영 DB(`my_blog`)는 어느 단계에서도 건드리지 않음.
+
+### 핵심 교훈
+
+1. 원본과 같은 장애 도메인(같은 디스크/같은 호스트)에만 있는 백업은 재해복구용 백업이 아니다. 오프사이트 복제본이 있어야 호스트 자체의 손실에서도 복구할 수 있다.
+2. rclone의 OAuth 설정은 헤드리스 서버에서 자동화하기 까다롭다 — `rclone authorize`를 브라우저가 있는 별도 기기에서 실행하거나 SSH 로컬 포트포워딩으로 콜백 포트를 끌어와야 한다. 이미 발급받은 토큰이 있어도 `rclone config create`의 `config_is_local` 기본값(true)을 그대로 두면 이미 준 토큰을 무시하고 auto-config를 다시 시도하다 멈춘다(hang) — `config_is_local=false`를 명시해야 완전 비대화형으로 remote가 생성된다.
+3. "덤프가 에러 없이 끝났다"는 "복원 가능하다"의 증거가 아니다. `pg_restore --list`로 TABLE DATA 존재를 확인하고, 실제로 별도 DB에 복원해 row 수·샘플 데이터를 원본과 대조해야 백업이 유효하다는 게 검증된다.
+4. 오프사이트 복제본은 업로드 자체가 무손실인지(체크섬 대조), 그리고 그 복제본만으로 복원이 되는지까지 확인해야 진짜 DR 검증이 끝난 것이다. 로컬 원본만 복원해보는 것으로는 원격 사본이 손상되지 않았다는 보장이 없다.
+
 ## 2026-08-04 방문자 로그 인증 우회 취약점 대응
 
 ### 발견 배경
