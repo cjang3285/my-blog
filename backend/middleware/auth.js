@@ -1,3 +1,5 @@
+import crypto from 'crypto';
+
 // Check if IP is trusted (localhost only)
 const isTrustedIp = (ip) => {
   const trustedIps = [
@@ -39,6 +41,27 @@ export const autoAuth = (req, res, next) => {
 export const requireAuth = (req, res, next) => {
   if (req.session && req.session.isAuthenticated) {
     return next();
+  }
+  return res.status(401).json({ error: 'Unauthorized' });
+};
+
+// Session auth or `Authorization: Bearer <POST_API_TOKEN>` — for automated
+// posting (LearningCollector). Compares SHA-256 digests with timingSafeEqual
+// so the check neither leaks timing nor throws on length mismatch.
+export const requireAuthOrPostApiToken = (req, res, next) => {
+  if (req.session && req.session.isAuthenticated) {
+    return next();
+  }
+
+  const expected = process.env.POST_API_TOKEN;
+  const header = req.get('Authorization') || '';
+  const provided = header.startsWith('Bearer ') ? header.slice('Bearer '.length) : '';
+
+  if (expected && provided) {
+    const digest = (value) => crypto.createHash('sha256').update(value).digest();
+    if (crypto.timingSafeEqual(digest(provided), digest(expected))) {
+      return next();
+    }
   }
   return res.status(401).json({ error: 'Unauthorized' });
 };

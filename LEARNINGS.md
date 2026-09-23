@@ -2,6 +2,37 @@
 
 개발·개선·운영 과정에서 발견한 문제와 그로부터 얻은 교훈을 기록한다. 최신 항목이 위에 온다. 문서화 규칙(어투, 성능 수치 등)은 [CLAUDE.MD](./CLAUDE.MD) 3장을 따른다.
 
+## 2026-09-24 새 서버(Ubuntu 22.04)로 블로그 이전 — DB 버전 불일치, dotenv 로드 순서 버그, 자동 게시 인증
+
+### 배경
+
+블로그를 라즈베리파이 `raspiworker1`(Ubuntu 22.04.5, nginx 1.18)에 새로 구축하고, 2026-09-09자 오프사이트 덤프(`my_blog_20260909_000001.dump`)로 DB를 복원함. 이 과정에서 기존 서버에서는 드러나지 않던 문제가 연속으로 발견됨.
+
+### 문제와 원인
+
+1. **덤프와 PostgreSQL 메이저 버전 불일치**: 덤프 헤더(`strings`로 확인)상 원본은 PostgreSQL 18.6(Ubuntu 26.04)에서 생성됨. Ubuntu 22.04 기본 apt 저장소의 PostgreSQL은 14이며, `pg_restore`는 자신보다 새 메이저 버전의 `pg_dump`가 만든 custom 포맷 아카이브를 읽지 못함.
+2. **nginx `http2 on;` 미지원**: `http2` 지시어는 nginx 1.25.1에서 추가됨. 1.18에서는 `listen 443 ssl http2;` 파라미터 방식만 동작.
+3. **ESM import 호이스팅으로 `.env`가 DB 풀 생성 이후에 로드됨**: `app.js`가 본문 첫 줄에서 `dotenv.config()`를 호출했지만, ES 모듈은 모듈 그래프의 모든 `import`를 먼저 평가한 뒤 본문을 실행한다. 따라서 `routes → services → config/db.js`의 `new Pool()`이 `DB_*`가 비어 있는 상태에서 생성되어 기본값 `postgres`/`postgres`로 접속을 시도했고, 새 서버에서는 `password authentication failed for user "postgres"`로 전 API가 500. 기존 서버에서 정상 동작했다는 것은 앱이 슈퍼유저 `postgres` + 기본 비밀번호로 DB에 붙어 있었다는 의미.
+4. **백업 권한 부족**: 앱 계정 `jcw`로 `pg_dump` 실행 시 `permission denied for schema learning`. 덤프상 `blog` 스키마에는 `jcw`에게 `USAGE`가 부여돼 있었으나 `learning` 스키마에는 없었음. 3번과 같은 이유로 기존 서버에서는 슈퍼유저로 백업이 돌아 드러나지 않았음.
+5. **LearningCollector 자동 게시 불가**: LearningCollector는 `localhost:3000/api/posts`에 인증 없이 POST하며, 2026-08-04 인증 우회 대응으로 `autoAuth`(localhost 자동 인증)가 `NODE_ENV=development`에서만 동작하도록 제한된 이후로는 프로덕션에서 401을 받는 구조.
+6. **서버 내부에서 공인 도메인 접속 불가**: 서버에서 `https://chanwook.kr`로 요청하면 타임아웃. 공유기가 헤어핀 NAT(내부망에서 자기 공인 IP로 나갔다 돌아오는 트래픽)를 지원하지 않기 때문이며, 서비스 장애가 아님.
+
+### 해결
+
+1. PGDG 공식 저장소(`/usr/share/postgresql-common/pgdg/apt.postgresql.org.sh`)로 `postgresql-18` 설치 후, 원본과 동일하게 스키마 소유자는 `postgres`, 앱 계정은 `jcw`로 두고 `sudo -u postgres pg_restore`로 복원. 복원 후 row 수 확인(posts 348, projects 7, visits 22380, learning.* 4개 테이블).
+2. `deployment/nginx-blog.conf`를 `listen 443 ssl http2;`로 변경.
+3. `dotenv.config()`를 `backend/config/env.js`로 분리하고 `app.js`의 첫 `import`로 둠. `import` 문은 작성 순서대로 평가되므로 이후 모든 모듈보다 먼저 `.env`가 로드됨. 수정 후 `pg_stat_activity`로 앱 커넥션이 `jcw`로 붙는 것을 확인.
+4. 백업 계정에 `pg_read_all_data`(PostgreSQL 14+ 내장 롤, 모든 스키마 읽기 전용) 부여 (`sudo -u postgres psql -c "GRANT pg_read_all_data TO jcw;"`). 스키마별 `GRANT`는 새 스키마·테이블이 생길 때마다 누락될 수 있어 내장 롤을 선택.
+5. `POST /api/posts`에만 `Authorization: Bearer <POST_API_TOKEN>`을 허용하는 `requireAuthOrPostApiToken` 미들웨어 추가. 토큰 비교는 양쪽을 SHA-256 다이제스트로 만든 뒤 `crypto.timingSafeEqual`로 수행 — 길이가 달라도 예외 없이 상수 시간 비교가 되도록 함. PUT/DELETE는 기존 세션 인증만 허용해 토큰 유출 시 피해 범위를 글 작성으로 한정. LearningCollector는 `BLOG_API_TOKEN` 환경변수로 같은 값을 전송.
+6. 서버 내부 검증은 `curl --resolve chanwook.kr:443:127.0.0.1`로 로컬 nginx를 거쳐 수행하고, 외부 접속은 모바일망에서 별도 확인.
+
+### 핵심 교훈
+
+1. 덤프 복원 전에 덤프를 만든 PostgreSQL 버전과 복원 대상 버전을 먼저 대조해야 한다. `pg_restore`는 하위 호환(구버전 덤프 → 신버전)만 보장한다.
+2. ESM에서 `dotenv.config()`를 본문에서 호출하는 패턴은 import된 모듈이 로드 시점에 `process.env`를 읽으면 조용히 실패한다. 기본값 폴백(`|| 'postgres'`)이 있으면 에러 없이 잘못된 계정으로 동작하므로, 문제가 "다른 환경에서만" 드러난다.
+3. 서버 이전은 기존 환경이 우연히 가려주던 문제(슈퍼유저 접속, 권한 누락)를 드러내는 기회다. 새 환경에서 최소 권한으로 구성하면 기존 설정에 숨어 있던 의존성이 에러로 나타난다.
+4. 보안 대응으로 인증 경로를 막을 때는 그 경로에 의존하던 자동화(LearningCollector)를 함께 점검해야 한다. 자동화 쪽 실패는 해당 도구의 로그에만 남아 블로그 쪽에서는 보이지 않는다.
+
 ## 2026-08-20 DB 백업 오프사이트 복제(rclone/Google Drive) 및 복구 플로우 검증
 
 ### 배경
