@@ -5,15 +5,23 @@ import {
   getPostBySlug,
   getPostById,
   getAllTags,
+  getCategoryCounts,
   createPost,
   updatePost as updatePostService,
   deletePost as deletePostService
 } from '../services/postService.js';
+import { isValidCategory } from '../utils/postCategory.js';
 
-// GET /api/posts/tags - Get all tags with counts
+const INVALID_CATEGORY_MESSAGE = 'Invalid category';
+
+// GET /api/posts/tags - Get all tags with counts (optional ?category= filter)
 export const getTags = async (req, res) => {
   try {
-    const tags = await getAllTags();
+    const category = req.query.category || null;
+    if (category && !isValidCategory(category)) {
+      return res.status(400).json({ error: INVALID_CATEGORY_MESSAGE });
+    }
+    const tags = await getAllTags(category);
     res.json(tags);
   } catch (error) {
     console.error('Error fetching tags:', error);
@@ -21,14 +29,29 @@ export const getTags = async (req, res) => {
   }
 };
 
-// GET /api/posts - Get all posts (or paginated if ?page= is provided, optional ?tag= filter)
+// GET /api/posts/categories - Get post counts per category
+export const getCategories = async (req, res) => {
+  try {
+    const counts = await getCategoryCounts();
+    res.json(counts);
+  } catch (error) {
+    console.error('Error fetching categories:', error);
+    res.status(500).json({ error: 'Failed to fetch categories' });
+  }
+};
+
+// GET /api/posts - Get all posts (or paginated if ?page= is provided, optional ?tag= / ?category= filter)
 export const getPosts = async (req, res) => {
   try {
     const tag = req.query.tag || null;
+    const category = req.query.category || null;
+    if (category && !isValidCategory(category)) {
+      return res.status(400).json({ error: INVALID_CATEGORY_MESSAGE });
+    }
     if (req.query.page !== undefined) {
       const page = Math.max(1, parseInt(req.query.page, 10) || 1);
       const limit = Math.min(100, parseInt(req.query.limit, 10) || 10);
-      const result = await getPostsPaginated(page, limit, tag);
+      const result = await getPostsPaginated(page, limit, { tag, category });
       res.json(result);
     } else {
       const posts = await getAllPosts();
@@ -68,13 +91,16 @@ export const getPost = async (req, res) => {
 // POST /api/posts - Create new post
 export const addPost = async (req, res) => {
   try {
-    const { title, excerpt, content, tags, featured } = req.body;
+    const { title, excerpt, content, tags, featured, category } = req.body;
 
     if (!title || !content) {
       return res.status(400).json({ error: 'Title and content are required' });
     }
+    if (category !== undefined && !isValidCategory(category)) {
+      return res.status(400).json({ error: INVALID_CATEGORY_MESSAGE });
+    }
 
-    const newPost = await createPost({ title, excerpt, content, tags, featured });
+    const newPost = await createPost({ title, excerpt, content, tags, featured, category });
     res.status(201).json(newPost);
   } catch (error) {
     console.error('Error creating post:', error);
@@ -98,8 +124,11 @@ export const updatePost = async (req, res) => {
       return res.status(404).json({ error: 'Post not found' });
     }
 
-    const { title, excerpt, content, tags, featured } = req.body;
-    const updatedPost = await updatePostService(id, { title, excerpt, content, tags, featured });
+    const { title, excerpt, content, tags, featured, category } = req.body;
+    if (category !== undefined && !isValidCategory(category)) {
+      return res.status(400).json({ error: INVALID_CATEGORY_MESSAGE });
+    }
+    const updatedPost = await updatePostService(id, { title, excerpt, content, tags, featured, category });
 
     res.json(updatedPost);
   } catch (error) {

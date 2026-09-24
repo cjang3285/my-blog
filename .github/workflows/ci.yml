@@ -61,6 +61,8 @@ jobs:
         env:
           HOST: 127.0.0.1
           PORT: 4322
+          # SSR이 운영 백엔드(3000)가 아닌 테스트 백엔드(3001)를 호출하도록 지정
+          SERVER_API_URL: http://localhost:3001
         run: |
           node dist/server/entry.mjs &
           echo "FRONTEND_PID=$!" >> $GITHUB_ENV

@@ -2,30 +2,45 @@
 export const prerender = false;
 
 import Layout from '../layouts/Layout.astro';
+import { fetchApi } from '../lib/api.js';
 
-// SSR에서는 백엔드 URL 필요
-const API_URL = import.meta.env.PUBLIC_API_URL || '';
-const res = await fetch(`${API_URL}/api/status`);
-const status = await res.json();
+const { data: status, error } = await fetchApi('/api/status');
+
+const GIB = 1024 ** 3;
+
+function formatUptime(seconds: number) {
+	const days = Math.floor(seconds / 86400);
+	const hours = Math.floor((seconds % 86400) / 3600);
+	const minutes = Math.floor((seconds % 3600) / 60);
+	return days > 0 ? `${days}d ${hours}h ${minutes}m` : `${hours}h ${minutes}m`;
+}
+
+const metrics = status
+	? [
+		{ label: 'load avg (1m)', value: status.cpuLoad.toFixed(2) },
+		{
+			label: 'memory',
+			value: `${((status.totalMem - status.freeMem) / GIB).toFixed(1)} / ${(status.totalMem / GIB).toFixed(1)} GiB`,
+		},
+		{ label: 'uptime', value: formatUptime(status.uptime) },
+	]
+	: [];
 ---
 
-<Layout title="Status - 장찬욱" description="서버 상태">
-  <h1 class="text-2xl font-semibold text-warm-100 mb-8 tracking-tight">Server Status</h1>
+<Layout title="Status - 장찬욱" description="이 블로그를 서빙하는 라즈베리파이의 현재 상태">
+	<h1 class="text-2xl font-bold text-ink-100 tracking-tight mb-2">Server Status</h1>
+	<p class="text-sm text-ink-500 mb-10">이 블로그를 서빙하는 라즈베리파이 노드의 현재 상태입니다.</p>
 
-  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-    <div class="p-5 rounded-lg border border-warm-800/50 bg-warm-900/30">
-      <h2 class="text-sm font-medium text-warm-500 uppercase tracking-wider mb-2">CPU</h2>
-      <p class="text-warm-200">{status.cpu}</p>
-    </div>
-
-    <div class="p-5 rounded-lg border border-warm-800/50 bg-warm-900/30">
-      <h2 class="text-sm font-medium text-warm-500 uppercase tracking-wider mb-2">Memory</h2>
-      <p class="text-warm-200">{status.memory}</p>
-    </div>
-
-    <div class="p-5 rounded-lg border border-warm-800/50 bg-warm-900/30">
-      <h2 class="text-sm font-medium text-warm-500 uppercase tracking-wider mb-2">Uptime</h2>
-      <p class="text-warm-200">{status.uptime}</p>
-    </div>
-  </div>
+	{error ? (
+		<p class="font-mono text-sm text-red-500">상태를 불러오지 못했습니다: {error}</p>
+	) : (
+		<div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+			{metrics.map(metric => (
+				<div class="p-5 rounded-md border border-ink-800 bg-ink-900/40">
+					<p class="font-mono text-xs text-ink-500 mb-2">{metric.label}</p>
+					<p class="font-mono text-lg text-ink-100">{metric.value}</p>
+				</div>
+			))}
+		</div>
+	)}
 </Layout>

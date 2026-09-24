@@ -2,6 +2,31 @@
 
 개발·개선·운영 과정에서 발견한 문제와 그로부터 얻은 교훈을 기록한다. 최신 항목이 위에 온다. 문서화 규칙(어투, 성능 수치 등)은 [CLAUDE.MD](./CLAUDE.MD) 3장을 따른다.
 
+## 2026-09-24 독자 기준 개편 — 글 분류(category), 목록/상세 SSR 전환, 디자인 교체
+
+### 배경
+
+글 348개 중 약 60%가 LearningCollector가 올린 `<레포명>: ...` 형식의 커밋/PR 요약이었고, 정리 글과 같은 목록에 같은 비중으로 섞여 있었다. 처음 방문한 독자가 정리 글을 찾기 어려웠다. 또 `/blog`, `/blog/[slug]`는 브라우저에서 API를 호출해 그리는 구조라 서버가 내려주는 HTML에는 본문이 없었다(검색엔진 수집, 링크 미리보기 불가).
+
+### 조치
+
+1. `blog.posts.category`(`article`/`ps`/`log`) 추가 및 기존 글 규칙 기반 일괄 분류 (`backend/db/add-category-to-posts.sql`). 결과: article 70, ps 68, log 210.
+   - 테이블 소유자가 `postgres`라 앱 계정(`jcw`)으로는 DDL 불가. `sudo -u postgres psql -f <파일>`은 `postgres` OS 유저가 `/home/jcw`를 읽지 못해 `Permission denied` — `-f - < 파일`로 jcw 쉘이 파일을 읽어 표준 입력으로 넘겨서 해결.
+2. API: `GET /api/posts?category=`, `GET /api/posts/tags?category=`, `GET /api/posts/categories` 추가. 작성 시 `category` 미지정이면 제목으로 추정(`utils/postCategory.js`)해 LearningCollector 쪽 수정 없이 로그로 분류된다.
+3. 프론트엔드: 메인, `/blog`, `/blog/[slug]`, `/status`를 SSR로 전환. RSS(`/rss.xml`, article만), canonical/og 메타 추가. 색 토큰을 `warm-*`에서 `ink-*`로 바꾸고 다크 모드(OS 설정 + 수동 전환)를 CSS 변수 재정의로 구현.
+4. `/status`가 운영에서 500이던 문제 수정: SSR에서 `PUBLIC_API_URL`(빈 문자열)로 상대 경로 fetch를 해서 실패했고, 응답 필드명(`cpuLoad` 등)도 페이지와 맞지 않았다.
+5. SSR 백엔드 주소를 `SERVER_API_URL` 런타임 환경변수로 분리. CI는 테스트 백엔드를 3001에 띄우는데 SSR은 3000(운영 백엔드)을 호출하고 있었다 — `ci.yml`에 `SERVER_API_URL=http://localhost:3001` 지정.
+
+### 트러블슈팅: 테스트 빌드가 운영 프론트엔드를 바꿔버림
+
+운영 서버(raspiWorker1)의 작업 디렉터리에서 테스트용으로 `npm run build`를 실행하자, PM2의 `blog-frontend`가 쓰는 `frontend/dist`가 교체됐다. Astro SSR 빌드는 `entry.mjs`가 페이지 청크를 요청 시점에 동적 import하므로, 재시작 없이도 이미 떠 있던 프로세스가 새 페이지 코드를 서빙하기 시작했다. 백엔드는 이전 코드라 `category` 필터가 무시되는 불일치 상태가 됐고, PM2 두 프로세스를 재시작해 맞췄다.
+
+### 핵심 교훈
+
+1. 운영 서버의 체크아웃에서 빌드하면 그 자체가 배포다. 검증용 빌드는 별도 worktree/디렉터리에서 해야 한다.
+2. 동적 import로 청크를 불러오는 SSR 빌드는 "프로세스 재시작 전까지는 이전 코드"라는 가정이 성립하지 않는다.
+3. 운영 DB는 앱 계정에 DDL 권한이 없다. 마이그레이션은 `sudo -u postgres psql -d my_blog -c "SET search_path TO blog" -f - < <sql>`로 적용하고, CI 테스트 DB(`test_blog` 스키마)에도 같은 SQL을 적용해야 한다.
+
 ## 2026-09-24 새 서버(Ubuntu 22.04)로 블로그 이전 — DB 버전 불일치, dotenv 로드 순서 버그, 자동 게시 인증
 
 ### 배경

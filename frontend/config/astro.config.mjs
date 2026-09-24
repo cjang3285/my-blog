@@ -6,6 +6,8 @@ import tailwindcss from '@tailwindcss/vite';
 
 // https://astro.build/config
 export default defineConfig({
+  // RSS 링크, canonical URL 생성에 사용하는 공개 주소
+  site: 'https://chanwook.kr',
   adapter: node({
     mode: 'standalone'
   }),

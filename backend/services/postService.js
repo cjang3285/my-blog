@@ -1,25 +1,36 @@
 import pool from '../config/db.js';
 import { renderMarkdown, hasMathExpression } from '../utils/markdown.js';
+import { inferCategory } from '../utils/postCategory.js';
 
-// Get posts with pagination (optional tag filter)
-export const getPostsPaginated = async (page, limit, tag = null) => {
+// WHERE 절 조립: 태그/분류 필터를 선택적으로 조합
+const buildPostFilter = ({ tag = null, category = null } = {}) => {
+  const conditions = [];
+  const values = [];
+  if (tag) {
+    values.push(tag);
+    conditions.push(`$${values.length} = ANY(tags)`);
+  }
+  if (category) {
+    values.push(category);
+    conditions.push(`category = $${values.length}`);
+  }
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+  return { where, values };
+};
+
+// Get posts with pagination (optional tag/category filter)
+export const getPostsPaginated = async (page, limit, filter = {}) => {
   try {
     const offset = (page - 1) * limit;
-    const [rowsResult, countResult] = tag
-      ? await Promise.all([
-          pool.query(
-            'SELECT * FROM posts WHERE $1 = ANY(tags) ORDER BY date DESC, id DESC LIMIT $2 OFFSET $3',
-            [tag, limit, offset]
-          ),
-          pool.query('SELECT COUNT(*) FROM posts WHERE $1 = ANY(tags)', [tag]),
-        ])
-      : await Promise.all([
-          pool.query(
-            'SELECT * FROM posts ORDER BY date DESC, id DESC LIMIT $1 OFFSET $2',
-            [limit, offset]
-          ),
-          pool.query('SELECT COUNT(*) FROM posts'),
-        ]);
+    const { where, values } = buildPostFilter(filter);
+    const limitParam = values.length + 1;
+    const [rowsResult, countResult] = await Promise.all([
+      pool.query(
+        `SELECT * FROM posts ${where} ORDER BY date DESC, id DESC LIMIT $${limitParam} OFFSET $${limitParam + 1}`,
+        [...values, limit, offset]
+      ),
+      pool.query(`SELECT COUNT(*) FROM posts ${where}`, values),
+    ]);
     const total = parseInt(countResult.rows[0].count, 10);
     return {
       posts: rowsResult.rows,
@@ -33,19 +44,33 @@ export const getPostsPaginated = async (page, limit, tag = null) => {
   }
 };
 
-// Get all unique tags with post counts
-export const getAllTags = async () => {
+// Get all unique tags with post counts (optional category filter)
+export const getAllTags = async (category = null) => {
   try {
     const result = await pool.query(
       `SELECT unnest(tags) AS tag, COUNT(*) AS count
        FROM posts
-       WHERE tags != '{}'
+       WHERE tags != '{}' AND ($1::text IS NULL OR category = $1)
        GROUP BY tag
-       ORDER BY count DESC, tag ASC`
+       ORDER BY count DESC, tag ASC`,
+      [category]
     );
     return result.rows;
   } catch (error) {
     console.error('Error in getAllTags service:', error);
+    throw error;
+  }
+};
+
+// Get post counts per category
+export const getCategoryCounts = async () => {
+  try {
+    const result = await pool.query(
+      'SELECT category, COUNT(*)::int AS count FROM posts GROUP BY category'
+    );
+    return result.rows;
+  } catch (error) {
+    console.error('Error in getCategoryCounts service:', error);
     throw error;
   }
 };
@@ -108,6 +133,7 @@ export const getPostById = async (id) => {
 export const createPost = async (postData) => {
   try {
     const { title, excerpt, content, tags = [], featured = false } = postData;
+    const category = postData.category || inferCategory(title);
     const slug = title.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9가-힣-]/g, '');
     const date = new Date().toISOString().split('T')[0];
 
@@ -117,10 +143,10 @@ export const createPost = async (postData) => {
     const has_math = hasMathExpression(content);
 
     const result = await pool.query(
-      `INSERT INTO posts (title, slug, excerpt, content_markdown, content_html, date, tags, featured, has_math)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      `INSERT INTO posts (title, slug, excerpt, content_markdown, content_html, date, tags, featured, has_math, category)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
-      [title, slug, excerpt, content_markdown, content_html, date, tags, featured, has_math]
+      [title, slug, excerpt, content_markdown, content_html, date, tags, featured, has_math, category]
     );
     return result.rows[0];
   } catch (error) {
@@ -132,7 +158,7 @@ export const createPost = async (postData) => {
 // Update existing post
 export const updatePost = async (id, postData) => {
   try {
-    const { title, excerpt, content, tags, featured } = postData;
+    const { title, excerpt, content, tags, featured, category } = postData;
 
     const updates = [];
     const values = [];
@@ -172,6 +198,11 @@ export const updatePost = async (id, postData) => {
     if (featured !== undefined) {
       updates.push(`featured = $${paramCount}`);
       values.push(featured);
+      paramCount++;
+    }
+    if (category !== undefined) {
+      updates.push(`category = $${paramCount}`);
+      values.push(category);
       paramCount++;
     }
 

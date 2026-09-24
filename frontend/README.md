@@ -16,11 +16,15 @@ Astro 5.x 기반 블로그 프론트엔드.
 frontend/
 ├── src/
 │   ├── components/
-│   │   ├── BlogCard.astro
 │   │   ├── Hero.astro
+│   │   ├── PostEditorModal.astro
+│   │   ├── PostRow.astro
 │   │   └── ProjectCard.astro
 │   ├── layouts/
 │   │   └── Layout.astro
+│   ├── lib/
+│   │   ├── api.js          # SSR용 백엔드 호출 (SERVER_API_URL)
+│   │   └── post.js         # 글 분류 라벨, 날짜(KST) 포맷
 │   ├── pages/
 │   │   ├── index.astro
 │   │   ├── blog.astro
@@ -28,6 +32,7 @@ frontend/
 │   │   ├── projects.astro
 │   │   ├── projects/[id].astro
 │   │   ├── about.astro
+│   │   ├── rss.xml.js
 │   │   ├── status.astro
 │   │   └── admin/login.astro
 │   └── styles/
@@ -53,3 +58,25 @@ frontend/
 | `npm run lint:fix` | ESLint 자동 수정 |
 | `npm run format` | Prettier 포맷 |
 | `npm run format:check` | Prettier 검사 |
+
+## 환경변수
+
+| 변수 | 시점 | 설명 | 기본값 |
+|------|------|------|--------|
+| `PUBLIC_API_URL` | 빌드 | 브라우저 스크립트가 호출할 API 주소 | `''` (상대 경로, nginx 프록시) |
+| `SERVER_API_URL` | 런타임 | SSR(페이지 frontmatter, `rss.xml`)이 호출할 백엔드 주소 | `http://localhost:3000` |
+| `ADMIN_PATH_SECRET` | 런타임 | 관리자 페이지 경로 | - |
+
+`src/middleware.js`의 방문 기록 호출은 아직 `http://localhost:3000`을 직접 사용한다.
+
+## 글 분류
+
+`blog.posts.category`(`backend/db/add-category-to-posts.sql`)로 글을 나눈다.
+
+| 값 | 표시 | 기준 |
+|----|------|------|
+| `article` | 글 | 독자용 정리 글. 메인, `/blog` 기본 탭, RSS에 노출 |
+| `ps` | 문제 풀이 | 백준/알고리즘 풀이 |
+| `log` | 개발 로그 | LearningCollector의 `<레포명>: ...` 커밋/PR 요약, 짧은 메모 |
+
+새 글 작성 시 `category`를 보내지 않으면 백엔드가 제목으로 추정한다 (`<레포명>:`로 시작하면 `log`, 그 외 `article`). 관리자 수정 모달에서 바꿀 수 있다.

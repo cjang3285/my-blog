@@ -1,14 +1,20 @@
 ---
+const TOPICS = ['Linux kernel', 'Networking', 'k3s', 'Monitoring', 'Security'];
 ---
-<section class="pt-10 pb-16">
-	<div class="space-y-4">
-		<h1 class="text-3xl font-bold text-warm-100 leading-snug tracking-tight">
-			안녕하세요,<br />
-			<span class="text-accent">장찬욱</span>입니다.
-		</h1>
-		<p class="text-warm-400 leading-relaxed max-w-lg text-[15px]">
-			백엔드와 인프라에 관심이 많은 학부생입니다.
-			배운 것들을 여기에 기록하고 있습니다.
-		</p>
-	</div>
+<section class="pt-4 pb-14">
+	<p class="font-mono text-sm text-ink-500 mb-4">
+		<span class="text-accent">$</span> whoami
+	</p>
+	<h1 class="text-[1.9rem] sm:text-4xl font-bold text-ink-100 leading-tight tracking-tight mb-5">
+		장찬욱
+	</h1>
+	<p class="text-[15.5px] leading-relaxed text-ink-400 max-w-xl">
+		라즈베리파이 k3s 클러스터를 직접 운영하며 리눅스와 네트워크를 공부하는 학부생입니다.
+		운영하다 막힌 문제를 원인까지 따라가 보고, 같은 문제를 만난 사람이 읽을 수 있게 정리합니다.
+	</p>
+	<ul class="mt-6 flex flex-wrap gap-2 font-mono text-xs">
+		{TOPICS.map(topic => (
+			<li class="px-2 py-1 rounded border border-ink-800 bg-ink-900/60 text-ink-400">{topic}</li>
+		))}
+	</ul>
 </section>

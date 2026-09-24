@@ -1,456 +1,235 @@
 ---
-import Layout from '../layouts/Layout.astro';
+export const prerender = false;
 
-const pageTitle = '글 - 장찬욱';
+import Layout from '../layouts/Layout.astro';
+import PostRow from '../components/PostRow.astro';
+import PostEditorModal from '../components/PostEditorModal.astro';
+import { fetchApi } from '../lib/api.js';
+import { CATEGORIES, DEFAULT_CATEGORY, isCategory, groupByYear } from '../lib/post.js';
+
+const POSTS_PER_PAGE = 20;
+const SIDEBAR_TAG_LIMIT = 40;
+const MOBILE_TAG_LIMIT = 15;
+
+const params = Astro.url.searchParams;
+const requestedCategory = params.get('category');
+const category = isCategory(requestedCategory) ? requestedCategory : DEFAULT_CATEGORY;
+const tag = params.get('tag');
+const page = Math.max(1, parseInt(params.get('page') ?? '1', 10) || 1);
+
+const postsQuery = new URLSearchParams({ page: String(page), limit: String(POSTS_PER_PAGE), category });
+if (tag) postsQuery.set('tag', tag);
+
+const [postsResult, countsResult, tagsResult] = await Promise.all([
+	fetchApi(`/api/posts?${postsQuery}`),
+	fetchApi('/api/posts/categories'),
+	fetchApi(`/api/posts/tags?category=${category}`),
+]);
+
+const posts = postsResult.data?.posts ?? [];
+const totalPages = postsResult.data?.totalPages ?? 1;
+const total = postsResult.data?.total ?? 0;
+const counts = Object.fromEntries((countsResult.data ?? []).map(({ category, count }) => [category, count]));
+const tags = (tagsResult.data ?? []).slice(0, SIDEBAR_TAG_LIMIT);
+const yearGroups = groupByYear(posts);
+const isLog = category === 'log';
+
+// 현재 필터를 유지하면서 일부 값만 바꾼 목록 URL
+function listHref(overrides: { category?: string; tag?: string | null; page?: number }) {
+	const next = new URLSearchParams();
+	const nextCategory = overrides.category ?? category;
+	const nextTag = overrides.tag === undefined ? tag : overrides.tag;
+	const nextPage = overrides.page ?? 1;
+	if (nextCategory !== DEFAULT_CATEGORY) next.set('category', nextCategory);
+	if (nextTag) next.set('tag', nextTag);
+	if (nextPage > 1) next.set('page', String(nextPage));
+	const query = next.toString();
+	return query ? `/blog?${query}` : '/blog';
+}
+
+function getPageNumbers(current: number, last: number): (number | '...')[] {
+	const SIBLINGS = 1;
+	const pages: (number | '...')[] = [1];
+	const start = Math.max(2, current - SIBLINGS);
+	const end = Math.min(last - 1, current + SIBLINGS);
+	if (start > 2) pages.push('...');
+	for (let p = start; p <= end; p++) pages.push(p);
+	if (end < last - 1) pages.push('...');
+	if (last > 1) pages.push(last);
+	return pages;
+}
+
+const pageTitle = `${CATEGORIES[category].label}${tag ? ` #${tag}` : ''} - 장찬욱`;
 ---
 
-<Layout title={pageTitle} description="모든 블로그 글 보기" wide={true}>
+<Layout title={pageTitle} description={CATEGORIES[category].description} wide={true}>
 	<div class="flex gap-12">
-		<!-- Left sidebar: tag filter (desktop) -->
-		<aside class="hidden lg:block w-44 flex-shrink-0">
-			<div class="sticky top-24 max-h-[calc(100vh-7rem)] overflow-y-auto pr-1">
-				<p class="text-xs font-medium text-warm-600 uppercase tracking-widest mb-3">태그</p>
-				<nav id="tag-list" class="flex flex-col gap-0.5">
-					<!-- populated by JS -->
-				</nav>
-			</div>
-		</aside>
-
-		<!-- Main content -->
 		<div class="flex-1 min-w-0">
-			<div class="flex justify-between items-center mb-3">
-				<div>
-					<h1 class="text-2xl font-semibold text-warm-100 tracking-tight">글</h1>
-					<p id="active-tag-label" class="hidden text-sm text-accent mt-0.5"></p>
-				</div>
-				<button id="add-post-btn" style="display: none;" class="px-3 py-1.5 bg-accent hover:bg-accent-hover text-warm-950 rounded text-sm font-medium transition-colors duration-300">
+			<div class="flex justify-between items-start gap-4 mb-2">
+				<h1 class="text-2xl font-bold text-ink-100 tracking-tight">{CATEGORIES[category].label}</h1>
+				<button id="add-post-btn" style="display: none;" class="px-3 py-1.5 bg-accent hover:bg-accent-hover text-ink-950 rounded text-sm font-medium transition-colors">
 					+ 새 글 작성
 				</button>
 			</div>
-			<p class="text-warm-500 text-sm mb-6">
-				배운 것들을 기록하고 공유합니다.
-			</p>
+			<p class="text-sm text-ink-500 mb-7">{CATEGORIES[category].description}</p>
 
-			<!-- Mobile tag strip -->
-			<div id="tag-strip-mobile" class="lg:hidden flex gap-2 overflow-x-auto pb-2 mb-6 -mx-6 px-6">
-				<!-- populated by JS -->
-			</div>
+			<nav class="flex gap-5 border-b border-ink-800 mb-2 overflow-x-auto" aria-label="분류">
+				{Object.entries(CATEGORIES).map(([key, { label }]) => (
+					<a
+						href={listHref({ category: key, tag: null })}
+						class={`-mb-px pb-2.5 text-sm whitespace-nowrap border-b-2 transition-colors ${key === category
+							? 'border-accent text-ink-100 font-medium'
+							: 'border-transparent text-ink-500 hover:text-ink-200'}`}
+						aria-current={key === category ? 'page' : undefined}
+					>
+						{label}<span class="ml-1.5 font-mono text-xs text-ink-500">{counts[key] ?? 0}</span>
+					</a>
+				))}
+			</nav>
+
+			{tag && (
+				<div class="flex items-center gap-3 py-3 text-sm">
+					<span class="font-mono text-accent">#{tag}</span>
+					<span class="text-ink-500">{total}개</span>
+					<a href={listHref({ tag: null })} class="ml-auto font-mono text-xs text-ink-500 hover:text-accent transition-colors">필터 해제 &times;</a>
+				</div>
+			)}
+
+			{tags.length > 0 && (
+				<div class="lg:hidden flex gap-2 overflow-x-auto py-3 -mx-5 px-5 sm:-mx-6 sm:px-6">
+					{tags.slice(0, MOBILE_TAG_LIMIT).map(({ tag: name }) => (
+						<a
+							href={listHref({ tag: name === tag ? null : name })}
+							class={`shrink-0 px-2.5 py-1 rounded border font-mono text-xs transition-colors ${name === tag
+								? 'border-accent/60 text-accent bg-accent/10'
+								: 'border-ink-800 text-ink-500 hover:text-ink-200'}`}
+						>#{name}</a>
+					))}
+				</div>
+			)}
 
 			<div id="posts-container">
-				<!-- Posts will be loaded here -->
+				{postsResult.error ? (
+					<div class="text-center py-20">
+						<p class="text-red-500 text-sm mb-2">글을 불러오는데 실패했습니다.</p>
+						<p class="font-mono text-ink-500 text-xs">{postsResult.error}</p>
+					</div>
+				) : posts.length === 0 ? (
+					<p class="text-center py-20 text-sm text-ink-500">해당하는 글이 없습니다.</p>
+				) : (
+					yearGroups.map(group => (
+						<section class="pt-6">
+							<h2 class="font-mono text-sm font-semibold text-ink-400 mb-1">{group.year}</h2>
+							<div class="divide-y divide-ink-800/60">
+								{group.posts.map(post => (
+									<PostRow post={post} dateFormat="monthDay" showExcerpt={!isLog} showTags={!isLog} />
+								))}
+							</div>
+						</section>
+					))
+				)}
 			</div>
+
+			{totalPages > 1 && (
+				<nav id="pagination" class="flex items-center justify-center flex-wrap gap-1 mt-12 font-mono text-sm" aria-label="페이지 탐색">
+					{page > 1 ? (
+						<a href={listHref({ page: page - 1 })} class="px-3 py-1.5 rounded text-ink-400 hover:text-ink-100 hover:bg-ink-900">&larr;</a>
+					) : (
+						<span class="px-3 py-1.5 text-ink-700">&larr;</span>
+					)}
+					{getPageNumbers(page, totalPages).map(p => p === '...' ? (
+						<span class="px-2 py-1.5 text-ink-600 select-none">&hellip;</span>
+					) : p === page ? (
+						<span class="px-3 py-1.5 rounded bg-accent text-ink-950 font-medium" aria-current="page">{p}</span>
+					) : (
+						<a href={listHref({ page: p })} class="px-3 py-1.5 rounded text-ink-400 hover:text-ink-100 hover:bg-ink-900">{p}</a>
+					))}
+					{page < totalPages ? (
+						<a href={listHref({ page: page + 1 })} class="px-3 py-1.5 rounded text-ink-400 hover:text-ink-100 hover:bg-ink-900">&rarr;</a>
+					) : (
+						<span class="px-3 py-1.5 text-ink-700">&rarr;</span>
+					)}
+				</nav>
+			)}
 		</div>
+
+		{tags.length > 0 && (
+			<aside class="hidden lg:block w-52 shrink-0">
+				<div class="sticky top-24 max-h-[calc(100vh-7rem)] overflow-y-auto pr-1">
+					<p class="font-mono text-xs text-ink-500 mb-3">tags</p>
+					<nav class="flex flex-col">
+						{tags.map(({ tag: name, count }) => (
+							<a
+								href={listHref({ tag: name === tag ? null : name })}
+								class={`flex items-center justify-between gap-2 py-1 px-2 -mx-2 rounded text-[13px] transition-colors ${name === tag
+									? 'bg-accent/10 text-accent font-medium'
+									: 'text-ink-500 hover:text-ink-100 hover:bg-ink-900'}`}
+							>
+								<span class="truncate">{name}</span>
+								<span class="font-mono text-[11px] text-ink-600 tabular-nums">{count}</span>
+							</a>
+						))}
+					</nav>
+				</div>
+			</aside>
+		)}
 	</div>
 
-	<!-- Add/Edit Post Modal -->
-	<div id="post-modal" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center z-50 overflow-y-auto backdrop-blur-sm">
-		<div class="bg-warm-900 border border-warm-800 p-6 rounded-lg w-full max-w-2xl m-4">
-			<h3 id="modal-title" class="text-xl font-semibold text-warm-100 mb-4">새 글 작성</h3>
-			<form id="post-form">
-				<input type="hidden" id="post-id" />
-				<div class="mb-4">
-					<label class="block text-warm-400 text-sm mb-2">제목 *</label>
-					<input
-						type="text"
-						id="post-title"
-						required
-						class="w-full px-3 py-2 bg-warm-950 text-warm-100 rounded border border-warm-700 focus:border-accent outline-none transition-colors text-sm"
-					/>
-				</div>
-				<div class="mb-4">
-					<label class="block text-warm-400 text-sm mb-2">요약 *</label>
-					<textarea
-						id="post-excerpt"
-						required
-						rows="2"
-						class="w-full px-3 py-2 bg-warm-950 text-warm-100 rounded border border-warm-700 focus:border-accent outline-none transition-colors text-sm"
-					></textarea>
-				</div>
-				<div class="mb-4">
-					<label class="block text-warm-400 text-sm mb-2">본문 *</label>
-					<textarea
-						id="post-content"
-						required
-						rows="8"
-						class="w-full px-3 py-2 bg-warm-950 text-warm-100 rounded border border-warm-700 focus:border-accent outline-none transition-colors text-sm"
-					></textarea>
-				</div>
-				<div class="mb-4">
-					<label class="block text-warm-400 text-sm mb-2">태그 (쉼표로 구분)</label>
-					<input
-						type="text"
-						id="post-tags"
-						placeholder="예: JavaScript, React, Web"
-						class="w-full px-3 py-2 bg-warm-950 text-warm-100 rounded border border-warm-700 focus:border-accent outline-none transition-colors text-sm"
-					/>
-				</div>
-				<div class="mb-4">
-					<label class="flex items-center text-warm-400 text-sm">
-						<input type="checkbox" id="post-featured" class="mr-2" />
-						Featured (메인 페이지에 표시)
-					</label>
-				</div>
-				<div class="flex gap-2 justify-end">
-					<button
-						type="button"
-						id="cancel-btn"
-						class="px-3 py-1.5 bg-warm-800 hover:bg-warm-700 rounded text-sm text-warm-300 transition-colors"
-					>
-						취소
-					</button>
-					<button
-						type="submit"
-						class="px-3 py-1.5 bg-accent hover:bg-accent-hover text-warm-950 rounded text-sm font-medium transition-colors"
-					>
-						저장
-					</button>
-				</div>
-			</form>
-		</div>
-	</div>
+	<PostEditorModal heading="새 글 작성" />
 </Layout>
 
 <script>
 	const API_URL = import.meta.env.PUBLIC_API_URL || '';
-	const POSTS_PER_PAGE = 10;
-	let editingPostId: string | null = null;
-	let isAuthenticated = false;
-	let currentPage = 1;
-	let totalPages = 1;
-	let activeTag: string | null = null;
 
-	// Read initial tag from URL
-	const urlParams = new URLSearchParams(window.location.search);
-	activeTag = urlParams.get('tag');
+	const modal = document.getElementById('post-modal');
+	const form = document.getElementById('post-form') as HTMLFormElement | null;
+	const addBtn = document.getElementById('add-post-btn');
+	const field = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
 	async function checkAuth() {
 		try {
 			const response = await fetch(`${API_URL}/api/auth/check`, { credentials: 'include' });
 			const data = await response.json();
-			isAuthenticated = data.isAuthenticated;
-			const addBtn = document.getElementById('add-post-btn');
-			if (addBtn) addBtn.style.display = isAuthenticated ? 'block' : 'none';
+			if (addBtn && data.isAuthenticated) addBtn.style.display = 'block';
 		} catch {
-			isAuthenticated = false;
+			// 비로그인 상태로 둔다
 		}
 	}
 
-	async function loadTags() {
-		try {
-			const response = await fetch(`${API_URL}/api/posts/tags`);
-			if (!response.ok) return;
-			const tags: { tag: string; count: string }[] = await response.json();
-			renderTagSidebar(tags);
-			renderTagStripMobile(tags);
-		} catch (error) {
-			console.error('[BLOG] Failed to load tags:', error);
-		}
-	}
-
-	function tagButtonClass(tag: string, mobile = false) {
-		const isActive = activeTag === tag;
-		const base = mobile
-			? 'flex-shrink-0 px-3 py-1 rounded-full text-xs transition-colors border '
-			: 'flex items-center justify-between w-full text-left text-sm py-1.5 px-2 rounded transition-colors ';
-		const active = mobile
-			? 'bg-accent/20 text-accent border-accent/40'
-			: 'bg-accent/10 text-accent font-medium';
-		const inactive = mobile
-			? 'text-warm-500 border-warm-800 hover:text-warm-200 hover:border-warm-600'
-			: 'text-warm-500 hover:text-warm-200 hover:bg-warm-800/60';
-		return base + (isActive ? active : inactive);
-	}
-
-	function renderTagSidebar(tags: { tag: string; count: string }[]) {
-		const list = document.getElementById('tag-list');
-		if (!list) return;
-
-		const allBtn = document.createElement('button');
-		allBtn.className = tagButtonClass('', false).replace(
-			activeTag === null ? 'text-warm-500 hover:text-warm-200 hover:bg-warm-800/60' : '',
-			activeTag === null ? 'bg-accent/10 text-accent font-medium' : 'text-warm-500 hover:text-warm-200 hover:bg-warm-800/60'
-		);
-		allBtn.innerHTML = `<span>전체</span><span class="text-xs text-warm-700 tabular-nums"></span>`;
-		if (activeTag === null) {
-			allBtn.className = 'flex items-center justify-between w-full text-left text-sm py-1.5 px-2 rounded transition-colors bg-accent/10 text-accent font-medium';
-		} else {
-			allBtn.className = 'flex items-center justify-between w-full text-left text-sm py-1.5 px-2 rounded transition-colors text-warm-500 hover:text-warm-200 hover:bg-warm-800/60';
-		}
-		allBtn.addEventListener('click', () => selectTag(null));
-		list.appendChild(allBtn);
-
-		tags.forEach(({ tag, count }) => {
-			const btn = document.createElement('button');
-			btn.className = activeTag === tag
-				? 'flex items-center justify-between w-full text-left text-sm py-1.5 px-2 rounded transition-colors bg-accent/10 text-accent font-medium'
-				: 'flex items-center justify-between w-full text-left text-sm py-1.5 px-2 rounded transition-colors text-warm-500 hover:text-warm-200 hover:bg-warm-800/60';
-			btn.innerHTML = `<span class="truncate">${tag}</span><span class="text-xs text-warm-700 tabular-nums flex-shrink-0 ml-1">${count}</span>`;
-			btn.addEventListener('click', () => selectTag(tag));
-			list.appendChild(btn);
-		});
-	}
-
-	function renderTagStripMobile(tags: { tag: string; count: string }[]) {
-		const strip = document.getElementById('tag-strip-mobile');
-		if (!strip) return;
-
-		const allBtn = document.createElement('button');
-		allBtn.className = activeTag === null
-			? 'flex-shrink-0 px-3 py-1 rounded-full text-xs transition-colors border bg-accent/20 text-accent border-accent/40'
-			: 'flex-shrink-0 px-3 py-1 rounded-full text-xs transition-colors border text-warm-500 border-warm-800 hover:text-warm-200 hover:border-warm-600';
-		allBtn.textContent = '전체';
-		allBtn.addEventListener('click', () => selectTag(null));
-		strip.appendChild(allBtn);
-
-		tags.forEach(({ tag }) => {
-			const btn = document.createElement('button');
-			btn.className = activeTag === tag
-				? 'flex-shrink-0 px-3 py-1 rounded-full text-xs transition-colors border bg-accent/20 text-accent border-accent/40'
-				: 'flex-shrink-0 px-3 py-1 rounded-full text-xs transition-colors border text-warm-500 border-warm-800 hover:text-warm-200 hover:border-warm-600';
-			btn.textContent = tag;
-			btn.addEventListener('click', () => selectTag(tag));
-			strip.appendChild(btn);
-		});
-	}
-
-	function selectTag(tag: string | null) {
-		activeTag = tag;
-		currentPage = 1;
-
-		// Update URL without reload
-		const url = new URL(window.location.href);
-		if (tag) url.searchParams.set('tag', tag);
-		else url.searchParams.delete('tag');
-		window.history.pushState({}, '', url);
-
-		// Re-render sidebar active states
-		const list = document.getElementById('tag-list');
-		const strip = document.getElementById('tag-strip-mobile');
-		if (list) list.innerHTML = '';
-		if (strip) strip.innerHTML = '';
-		loadTags();
-
-		// Update active tag label
-		const label = document.getElementById('active-tag-label');
-		if (label) {
-			if (tag) {
-				label.textContent = `#${tag}`;
-				label.classList.remove('hidden');
-			} else {
-				label.classList.add('hidden');
-			}
-		}
-
-		loadPosts(1);
-	}
-
-	async function loadPosts(page = 1) {
-		try {
-			let url = `${API_URL}/api/posts?page=${page}&limit=${POSTS_PER_PAGE}`;
-			if (activeTag) url += `&tag=${encodeURIComponent(activeTag)}`;
-
-			const response = await fetch(url);
-			if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-			const data = await response.json();
-			currentPage = data.page;
-			totalPages = data.totalPages;
-
-			const container = document.getElementById('posts-container');
-			if (!container) return;
-
-			if (data.posts.length === 0) {
-				container.innerHTML = `
-					<div class="text-center py-20">
-						<p class="text-warm-500 text-sm">해당 태그의 글이 없습니다.</p>
-					</div>
-				`;
-				renderPagination();
-				return;
-			}
-
-			container.innerHTML = data.posts.map((post: any) => `
-				<article class="post-item py-6 border-b border-warm-800/50 pl-6 -ml-6">
-					<div class="flex items-center gap-2 text-xs text-warm-600 mb-2 flex-wrap">
-						<time class="tabular-nums">${new Date(post.date).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}</time>
-						${post.tags && post.tags.length > 0 ? `
-							<span class="text-warm-700">·</span>
-							<div class="flex gap-1.5 flex-wrap">
-								${post.tags.map((tag: string) => `
-									<button
-										class="hover:text-accent transition-colors ${tag === activeTag ? 'text-accent font-medium' : 'text-warm-600'}"
-										onclick="window.__selectTag('${tag}')"
-									>${tag}</button>
-								`).join('')}
-							</div>
-						` : ''}
-						${post.featured ? '<span class="ml-auto px-2 py-0.5 bg-accent/15 text-accent text-xs rounded-full">Featured</span>' : ''}
-					</div>
-					<h3 class="text-base font-semibold text-warm-100 mb-1.5 leading-snug">
-						<a href="/blog/${post.slug}" class="hover:text-accent transition-colors duration-200">${post.title}</a>
-					</h3>
-					<p class="text-warm-500 text-sm leading-relaxed line-clamp-2">${post.excerpt}</p>
-				</article>
-			`).join('');
-
-			renderPagination();
-		} catch (error: any) {
-			console.error('[BLOG] Failed to load posts:', error);
-			const container = document.getElementById('posts-container');
-			if (container) {
-				container.innerHTML = `
-					<div class="text-center py-20">
-						<p class="text-red-400 text-sm mb-2">글을 불러오는데 실패했습니다.</p>
-						<p class="text-warm-600 text-xs">${error.message}</p>
-					</div>
-				`;
-			}
-		}
-	}
-
-	// Expose selectTag for inline onclick handlers in post list
-	(window as any).__selectTag = selectTag;
-
-	function getPageNumbers(current: number, total: number): (number | '...')[] {
-		const SIBLINGS = 1;
-		const pages: (number | '...')[] = [];
-		const start = Math.max(2, current - SIBLINGS);
-		const end = Math.min(total - 1, current + SIBLINGS);
-
-		pages.push(1);
-		if (start > 2) pages.push('...');
-		for (let p = start; p <= end; p++) pages.push(p);
-		if (end < total - 1) pages.push('...');
-		if (total > 1) pages.push(total);
-
-		return pages;
-	}
-
-	function renderPagination() {
-		const existing = document.getElementById('pagination');
-		if (existing) existing.remove();
-		if (totalPages <= 1) return;
-
-		const nav = document.createElement('nav');
-		nav.id = 'pagination';
-		nav.className = 'flex items-center justify-center flex-wrap gap-1 mt-10';
-		nav.setAttribute('aria-label', '페이지 탐색');
-
-		const prevBtn = document.createElement('button');
-		prevBtn.textContent = '←';
-		prevBtn.className = 'px-3 py-1.5 rounded text-sm transition-colors ' +
-			(currentPage === 1 ? 'text-warm-700 cursor-not-allowed' : 'text-warm-400 hover:text-warm-100 hover:bg-warm-800');
-		prevBtn.disabled = currentPage === 1;
-		prevBtn.addEventListener('click', () => goToPage(currentPage - 1));
-		nav.appendChild(prevBtn);
-
-		getPageNumbers(currentPage, totalPages).forEach((p) => {
-			if (p === '...') {
-				const ellipsis = document.createElement('span');
-				ellipsis.textContent = '…';
-				ellipsis.className = 'px-2 py-1.5 text-sm text-warm-700 select-none';
-				nav.appendChild(ellipsis);
-				return;
-			}
-			const btn = document.createElement('button');
-			btn.textContent = String(p);
-			btn.className = 'px-3 py-1.5 rounded text-sm transition-colors ' +
-				(p === currentPage ? 'bg-accent text-warm-950 font-medium' : 'text-warm-400 hover:text-warm-100 hover:bg-warm-800');
-			btn.disabled = p === currentPage;
-			btn.addEventListener('click', () => goToPage(p));
-			nav.appendChild(btn);
-		});
-
-		const nextBtn = document.createElement('button');
-		nextBtn.textContent = '→';
-		nextBtn.className = 'px-3 py-1.5 rounded text-sm transition-colors ' +
-			(currentPage === totalPages ? 'text-warm-700 cursor-not-allowed' : 'text-warm-400 hover:text-warm-100 hover:bg-warm-800');
-		nextBtn.disabled = currentPage === totalPages;
-		nextBtn.addEventListener('click', () => goToPage(currentPage + 1));
-		nav.appendChild(nextBtn);
-
-		document.getElementById('posts-container')?.after(nav);
-	}
-
-	function goToPage(page: number) {
-		if (page < 1 || page > totalPages) return;
-		loadPosts(page);
-		window.scrollTo({ top: 0, behavior: 'smooth' });
-	}
-
-	// Modal handling
-	const modal = document.getElementById('post-modal');
-	const modalTitle = document.getElementById('modal-title');
-	const form = document.getElementById('post-form') as HTMLFormElement;
-	const addBtn = document.getElementById('add-post-btn');
-	const cancelBtn = document.getElementById('cancel-btn');
-
-	addBtn?.addEventListener('click', openNewModal);
-	cancelBtn?.addEventListener('click', closeModal);
-
-	function openNewModal() {
-		editingPostId = null;
-		if (modalTitle) modalTitle.textContent = '새 글 작성';
-		(document.getElementById('post-title') as HTMLInputElement).value = '';
-		(document.getElementById('post-excerpt') as HTMLTextAreaElement).value = '';
-		(document.getElementById('post-content') as HTMLTextAreaElement).value = '';
-		(document.getElementById('post-tags') as HTMLInputElement).value = '';
-		(document.getElementById('post-featured') as HTMLInputElement).checked = false;
-		(document.getElementById('post-id') as HTMLInputElement).value = '';
+	addBtn?.addEventListener('click', () => {
+		form?.reset();
+		const current = new URLSearchParams(window.location.search).get('category');
+		if (current) field<HTMLSelectElement>('post-category').value = current;
 		modal?.classList.remove('hidden');
-	}
-
-	function closeModal() {
-		modal?.classList.add('hidden');
-		editingPostId = null;
-	}
+	});
+	document.getElementById('cancel-btn')?.addEventListener('click', () => modal?.classList.add('hidden'));
 
 	form?.addEventListener('submit', async (e) => {
 		e.preventDefault();
-		const title = (document.getElementById('post-title') as HTMLInputElement).value;
-		const excerpt = (document.getElementById('post-excerpt') as HTMLTextAreaElement).value;
-		const content = (document.getElementById('post-content') as HTMLTextAreaElement).value;
-		const tagsInput = (document.getElementById('post-tags') as HTMLInputElement).value;
-		const featured = (document.getElementById('post-featured') as HTMLInputElement).checked;
-		const tags = tagsInput ? tagsInput.split(',').map(t => t.trim()).filter(t => t) : [];
+		const tagsInput = field<HTMLInputElement>('post-tags').value;
+		const body = {
+			title: field<HTMLInputElement>('post-title').value,
+			excerpt: field<HTMLTextAreaElement>('post-excerpt').value,
+			content: field<HTMLTextAreaElement>('post-content').value,
+			tags: tagsInput ? tagsInput.split(',').map(t => t.trim()).filter(Boolean) : [],
+			category: field<HTMLSelectElement>('post-category').value,
+			featured: field<HTMLInputElement>('post-featured').checked,
+		};
 
 		try {
-			if (editingPostId) {
-				await fetch(`${API_URL}/api/posts/${editingPostId}`, {
-					method: 'PUT',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ title, excerpt, content, tags, featured })
-				});
-			} else {
-				await fetch(`${API_URL}/api/posts`, {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ title, excerpt, content, tags, featured })
-				});
-				currentPage = 1;
-			}
-			await loadPosts(currentPage);
-			closeModal();
+			const response = await fetch(`${API_URL}/api/posts`, {
+				method: 'POST',
+				credentials: 'include',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(body),
+			});
+			if (!response.ok) throw new Error(`HTTP ${response.status}`);
+			window.location.reload();
 		} catch (error) {
 			console.error('Failed to save post:', error);
 			alert('저장에 실패했습니다.');
 		}
 	});
 
-	// Init
-	(async () => {
-		await checkAuth();
-		await loadTags();
-
-		// Set active tag label if tag is in URL
-		if (activeTag) {
-			const label = document.getElementById('active-tag-label');
-			if (label) {
-				label.textContent = `#${activeTag}`;
-				label.classList.remove('hidden');
-			}
-		}
-
-		await loadPosts(1);
-	})();
+	checkAuth();
 </script>

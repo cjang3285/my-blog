@@ -1,0 +1,43 @@
+---
+import { formatDate, formatMonthDay } from '../lib/post.js';
+
+interface Props {
+	post: {
+		title: string;
+		slug: string;
+		date: string;
+		excerpt?: string | null;
+		tags?: string[] | null;
+		category: string;
+	};
+	// monthDay: 연도별로 묶인 목록 안에서 사용 (연도는 그룹 제목이 보여줌)
+	dateFormat?: 'full' | 'monthDay';
+	showExcerpt?: boolean;
+	showTags?: boolean;
+}
+
+const MAX_TAGS = 4;
+
+const { post, dateFormat = 'full', showExcerpt = true, showTags = true } = Astro.props;
+const dateText = dateFormat === 'full' ? formatDate(post.date) : formatMonthDay(post.date);
+const tags = (post.tags ?? []).slice(0, MAX_TAGS);
+const tagHref = (tag: string) => `/blog?category=${post.category}&tag=${encodeURIComponent(tag)}`;
+---
+<article class={`post-item group grid gap-x-4 sm:gap-x-6 py-3.5 ${dateFormat === 'full' ? 'grid-cols-[5.75rem_1fr]' : 'grid-cols-[3rem_1fr]'}`}>
+	<time datetime={post.date} class="font-mono text-xs text-ink-500 tabular-nums pt-[0.3rem]">{dateText}</time>
+	<div class="min-w-0">
+		<h3 class="text-[15px] font-semibold leading-snug text-ink-100">
+			<a href={`/blog/${post.slug}`} class="group-hover:text-accent transition-colors">{post.title}</a>
+		</h3>
+		{showExcerpt && post.excerpt && (
+			<p class="mt-1 text-sm leading-relaxed text-ink-500 line-clamp-2">{post.excerpt}</p>
+		)}
+		{showTags && tags.length > 0 && (
+			<div class="mt-1.5 flex flex-wrap gap-x-2.5 gap-y-0.5 font-mono text-[11.5px] text-ink-500">
+				{tags.map(tag => (
+					<a href={tagHref(tag)} class="hover:text-accent transition-colors">#{tag}</a>
+				))}
+			</div>
+		)}
+	</div>
+</article>

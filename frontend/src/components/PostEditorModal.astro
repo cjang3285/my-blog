@@ -1,0 +1,58 @@
+---
+import { CATEGORIES, DEFAULT_CATEGORY } from '../lib/post.js';
+
+interface Props {
+	heading: string;
+}
+
+const { heading } = Astro.props;
+const inputClass = 'w-full px-3 py-2 bg-ink-950 text-ink-100 rounded border border-ink-700 focus:border-accent outline-none transition-colors text-sm';
+---
+<div id="post-modal" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center z-50 overflow-y-auto backdrop-blur-sm">
+	<div class="modal-panel bg-ink-900 border border-ink-800 p-6 rounded-lg w-full max-w-2xl m-4">
+		<h3 id="modal-title" class="text-xl font-semibold text-ink-100 mb-4">{heading}</h3>
+		<form id="post-form">
+			<input type="hidden" id="post-id" />
+			<div class="mb-4">
+				<label for="post-title" class="block text-ink-400 text-sm mb-2">제목 *</label>
+				<input type="text" id="post-title" required class={inputClass} />
+			</div>
+			<div class="mb-4">
+				<label for="post-excerpt" class="block text-ink-400 text-sm mb-2">요약 *</label>
+				<textarea id="post-excerpt" required rows="2" class={inputClass}></textarea>
+			</div>
+			<div class="mb-4">
+				<label for="post-content" class="block text-ink-400 text-sm mb-2">본문 *</label>
+				<textarea id="post-content" required rows="10" class={`${inputClass} font-mono`}></textarea>
+			</div>
+			<div class="mb-4 grid sm:grid-cols-[1fr_10rem] gap-4">
+				<div>
+					<label for="post-tags" class="block text-ink-400 text-sm mb-2">태그 (쉼표로 구분)</label>
+					<input type="text" id="post-tags" placeholder="예: nginx, k3s, 네트워크" class={inputClass} />
+				</div>
+				<div>
+					<label for="post-category" class="block text-ink-400 text-sm mb-2">분류</label>
+					<select id="post-category" class={inputClass}>
+						{Object.entries(CATEGORIES).map(([value, { label }]) => (
+							<option value={value} selected={value === DEFAULT_CATEGORY}>{label}</option>
+						))}
+					</select>
+				</div>
+			</div>
+			<div class="mb-4">
+				<label class="flex items-center text-ink-400 text-sm">
+					<input type="checkbox" id="post-featured" class="mr-2" />
+					메인 페이지 "먼저 읽어볼 글"에 표시
+				</label>
+			</div>
+			<div class="flex gap-2 justify-end">
+				<button type="button" id="cancel-btn" class="px-3 py-1.5 bg-ink-800 hover:bg-ink-700 rounded text-sm text-ink-300 transition-colors">
+					취소
+				</button>
+				<button type="submit" class="px-3 py-1.5 bg-accent hover:bg-accent-hover text-ink-950 rounded text-sm font-medium transition-colors">
+					저장
+				</button>
+			</div>
+		</form>
+	</div>
+</div>
