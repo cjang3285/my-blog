@@ -21,6 +21,10 @@ jobs:
     environment: production
     steps:
       - name: Deploy
+        # 러너는 job 종료 시 RUNNER_TRACKING_ID를 가진 프로세스를 전부 종료한다.
+        # pm2 start로 띄운 앱이 이 값을 상속하면 배포 직후 SIGKILL되므로 비운다.
+        env:
+          RUNNER_TRACKING_ID: ""
         run: |
           cd ~/my-blog
           git pull origin master
