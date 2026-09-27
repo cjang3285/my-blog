@@ -1,6 +1,5 @@
 -- posts 인덱스 정리 (2026-09-27 쿼리 튜닝 점검 결과)
 -- 적용: sudo -u postgres psql -d my_blog -c "SET search_path TO blog" -f - < backend/db/tune-posts-indexes.sql
--- CI 테스트 DB(test_blog 스키마)에도 같은 SQL을 적용해야 한다.
 
 -- posts_slug_key(UNIQUE)와 컬럼이 같은 중복 인덱스: 쓰기 비용만 늘린다
 DROP INDEX IF EXISTS idx_posts_slug;

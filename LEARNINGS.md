@@ -55,7 +55,7 @@
 
 1. 운영 서버의 체크아웃에서 빌드하면 그 자체가 배포다. 검증용 빌드는 별도 worktree/디렉터리에서 해야 한다.
 2. 동적 import로 청크를 불러오는 SSR 빌드는 "프로세스 재시작 전까지는 이전 코드"라는 가정이 성립하지 않는다.
-3. 운영 DB는 앱 계정에 DDL 권한이 없다. 마이그레이션은 `sudo -u postgres psql -d my_blog -c "SET search_path TO blog" -f - < <sql>`로 적용하고, CI 테스트 DB(`test_blog` 스키마)에도 같은 SQL을 적용해야 한다.
+3. 운영 DB는 앱 계정에 DDL 권한이 없다. 마이그레이션은 `sudo -u postgres psql -d my_blog -c "SET search_path TO blog" -f - < <sql>`로 적용한다. (2026-09-27 CI 제거로 `test_blog` 적용은 불필요)
 
 ## 2026-09-24 새 서버(Ubuntu 22.04)로 블로그 이전 — DB 버전 불일치, dotenv 로드 순서 버그, 자동 게시 인증
 
