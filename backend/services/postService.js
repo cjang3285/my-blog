@@ -2,13 +2,18 @@ import pool from '../config/db.js';
 import { renderMarkdown, hasMathExpression } from '../utils/markdown.js';
 import { inferCategory } from '../utils/postCategory.js';
 
+// 목록 응답용 컬럼: 본문(content_markdown/content_html, 글당 ~55KB)은 상세 조회에서만 내려준다
+const LIST_COLUMNS = `id, title, slug, excerpt, date, tags, featured, category, has_math,
+  created_at, updated_at, source_artifact_ids, auto_generated, ai_model`;
+
 // WHERE 절 조립: 태그/분류 필터를 선택적으로 조합
 const buildPostFilter = ({ tag = null, category = null } = {}) => {
   const conditions = [];
   const values = [];
   if (tag) {
     values.push(tag);
-    conditions.push(`$${values.length} = ANY(tags)`);
+    // `= ANY(tags)`는 GIN 인덱스(idx_posts_tags)를 못 탄다
+    conditions.push(`tags @> ARRAY[$${values.length}::text]`);
   }
   if (category) {
     values.push(category);
@@ -26,7 +31,7 @@ export const getPostsPaginated = async (page, limit, filter = {}) => {
     const limitParam = values.length + 1;
     const [rowsResult, countResult] = await Promise.all([
       pool.query(
-        `SELECT * FROM posts ${where} ORDER BY date DESC, id DESC LIMIT $${limitParam} OFFSET $${limitParam + 1}`,
+        `SELECT ${LIST_COLUMNS} FROM posts ${where} ORDER BY date DESC, id DESC LIMIT $${limitParam} OFFSET $${limitParam + 1}`,
         [...values, limit, offset]
       ),
       pool.query(`SELECT COUNT(*) FROM posts ${where}`, values),
@@ -79,7 +84,7 @@ export const getCategoryCounts = async () => {
 export const getAllPosts = async () => {
   try {
     const result = await pool.query(
-      'SELECT * FROM posts ORDER BY date DESC, id DESC'
+      `SELECT ${LIST_COLUMNS} FROM posts ORDER BY date DESC, id DESC`
     );
     return result.rows;
   } catch (error) {
@@ -92,7 +97,7 @@ export const getAllPosts = async () => {
 export const getFeaturedPosts = async () => {
   try {
     const result = await pool.query(
-      'SELECT * FROM posts WHERE featured = true ORDER BY date DESC, id DESC'
+      `SELECT ${LIST_COLUMNS} FROM posts WHERE featured = true ORDER BY date DESC, id DESC`
     );
     return result.rows;
   } catch (error) {

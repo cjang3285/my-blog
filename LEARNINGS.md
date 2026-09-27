@@ -2,6 +2,36 @@
 
 개발·개선·운영 과정에서 발견한 문제와 그로부터 얻은 교훈을 기록한다. 최신 항목이 위에 온다. 문서화 규칙(어투, 성능 수치 등)은 [CLAUDE.MD](./CLAUDE.MD) 3장을 따른다.
 
+## 2026-09-27 DB 쿼리 튜닝 점검 — 시퀀스 권한 누락으로 INSERT 전면 실패, 인덱스 정리, 쿼리 관측 도입
+
+### 배경
+
+쿼리 튜닝 상태를 점검하기 위해 `pg_stat_user_tables`/`pg_stat_user_indexes`/`pg_settings` 조회와 서비스 계층 쿼리의 `EXPLAIN (ANALYZE, BUFFERS)`를 수행했다. 7일 방문 통계 쿼리가 0행을 반환해 원인을 추적하던 중, 튜닝과 별개로 쓰기 경로 장애를 발견했다.
+
+### 트러블슈팅: 서버 이전 후 모든 INSERT 실패
+
+- 증상: `blog.visits`의 최신 행이 덤프 시점(2026-09-08)에 멈춰 있었고, `backend/logs/err.log`에 `permission denied for sequence visits_id_seq`가 17,866건 누적.
+- 원인: 2026-09-24 이전 시 `pg_restore --no-privileges`로 복원해 GRANT가 전부 빠졌다. 테이블·시퀀스 소유자는 `postgres`이고 앱 계정(`jcw`)은 소유자가 아니므로 별도 권한이 필요하다. `SERIAL` 컬럼의 기본값은 `nextval('..._id_seq')`이고, `nextval`은 테이블 INSERT 권한과 별개로 시퀀스의 `USAGE`(또는 `UPDATE`) 권한을 요구한다. `has_sequence_privilege`로 확인한 결과 `blog`/`learning` 스키마의 시퀀스 7개 모두 `false`.
+- 영향: 방문 기록 유실(2026-09-24 ~ 09-27), `createPost`/`createProject` 및 LearningCollector 자동 게시도 같은 이유로 실패 상태였다. 읽기 경로는 정상이라 페이지는 정상 동작해 드러나지 않았다.
+- 조치: `backend/db/grant-app-privileges.sql` — `GRANT USAGE ON ALL SEQUENCES`와 `ALTER DEFAULT PRIVILEGES`(이후 생성될 시퀀스용)를 적용. 적용 후 페이지 요청이 `visits`에 기록되는 것을 확인.
+
+### 조치: 인덱스 및 쿼리
+
+점검 시점 데이터 규모는 posts 347행(힙 376 kB, TOAST 3 MB), visits 약 2.2만 행으로 전부 shared_buffers 안에 들어간다. 지연 문제는 없었고, 조치는 불필요한 비용 제거와 데이터 증가 대비가 목적이다.
+
+1. 목록 쿼리의 `SELECT *`를 목록용 컬럼(`LIST_COLUMNS`)으로 교체. posts는 본문(`content_markdown`, `content_html`)이 TOAST에 저장되는데, `SELECT *`는 목록에 쓰지 않는 본문까지 매 행 detoast해서 전송했다.
+2. `idx_posts_slug` 삭제: `posts_slug_key`(UNIQUE 제약이 만든 인덱스)와 컬럼이 같은 중복 인덱스로, 조회 이득 없이 쓰기 시 유지 비용만 발생.
+3. `idx_posts_date (date DESC, id DESC)` 추가: 기존 `idx_posts_category_date`는 선두 컬럼이 `category`라 분류 필터가 없는 목록 쿼리에는 쓰이지 않았다(B-tree는 선두 컬럼 조건 없이 정렬 순서를 활용할 수 없음). 적용 후 필터 없는 1페이지 조회가 Seq Scan + top-N 정렬(47페이지 읽기)에서 Index Scan(5페이지)으로 바뀌었다.
+4. 태그 필터를 `$1 = ANY(tags)`에서 `tags @> ARRAY[$1::text]`로 변경하고 GIN 인덱스 `idx_posts_tags` 추가. GIN 배열 연산자 클래스(`array_ops`)는 `@>`, `<@`, `&&`, `=` 연산자만 지원하므로 `= ANY()` 형태는 인덱스를 탈 수 없다. 전체 태그 479개에 대해 변경 전후 결과 id 집합이 동일함을 확인. 적용 후 Seq Scan에서 Bitmap Index Scan으로 바뀌었다.
+5. 쿼리 관측 설정: `pg_stat_statements`(쿼리별 호출 수·누적 시간), `log_min_duration_statement = 100ms`(느린 쿼리 로그), `track_io_timing = on`(EXPLAIN과 통계에 I/O 대기 시간 포함). `shared_preload_libraries` 변경은 재시작이 필요하다.
+
+### 핵심 교훈
+
+1. `pg_restore --no-privileges`로 복원했다면 앱 계정 권한을 반드시 다시 부여해야 한다. 테이블 권한만 확인하면 부족하고, 시퀀스 권한이 없으면 SELECT는 되고 INSERT만 실패해 읽기 위주 서비스에서는 장애가 드러나지 않는다.
+2. 복원 검증 항목에 row 수 대조뿐 아니라 앱 계정으로 쓰기 한 건을 수행하는 확인을 포함해야 한다.
+3. 쿼리가 인덱스를 쓰는지는 연산자 형태에 따라 달라진다. 같은 의미의 조건이라도 인덱스가 지원하는 연산자로 작성해야 한다.
+4. 느린 쿼리를 추측하지 않으려면 `pg_stat_statements`가 먼저 있어야 한다.
+
 ## 2026-09-24 독자 기준 개편 — 글 분류(category), 목록/상세 SSR 전환, 디자인 교체
 
 ### 배경
